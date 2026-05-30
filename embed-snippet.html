@@ -1,0 +1,104 @@
+<!--
+  ========================================================================
+  TableLive — Formulaire de réservation à INTÉGRER dans un site restaurant
+  ========================================================================
+  MODE D'EMPLOI (pour l'intégration dans un site NB-Design) :
+   1. Coller ce bloc à l'endroit voulu de la page (section "Réservation").
+   2. Remplacer  data-resto="demo"  par le slug du restaurant (ex: "udrisard").
+      → ce slug doit exister dans la table `restaurants` de Supabase.
+   3. Adapter la couleur d'accent au site via  --tl-green  (CSS ci-dessous).
+   4. Le supabase-js (1ère ligne) ne doit être inclus qu'UNE fois par page.
+  Le client remplit le formulaire SUR LA PAGE (aucun changement de page) ;
+  l'envoi crée une réservation source='web' qui arrive en temps réel dans l'app.
+-->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<div class="tl-resa" id="tlResa" data-resto="demo">
+  <style>
+    /* Couleur d'accent à ajuster selon le site du resto */
+    #tlResa{ --tl-green:#1f7a52; --tl-ink:#18201d; --tl-soft:#5a6661; --tl-line:#e6e9e6; --tl-bg:#f6f7f5;
+      font-family:inherit; color:var(--tl-ink); max-width:440px; margin:0 auto; background:#fff;
+      border:1px solid var(--tl-line); border-radius:16px; padding:22px; box-sizing:border-box;
+      box-shadow:0 8px 30px rgba(20,30,25,.06); }
+    #tlResa *,#tlResa *::before,#tlResa *::after{ box-sizing:border-box; }
+    #tlResa h2{ font-size:20px; margin:0 0 4px; }
+    #tlResa .tl-sub{ color:var(--tl-soft); font-size:13.5px; margin:0 0 18px; }
+    #tlResa label{ display:block; font-size:13px; font-weight:600; margin:0 0 6px; }
+    #tlResa input,#tlResa textarea{ width:100%; font:inherit; font-size:15px; padding:11px 13px;
+      border:1px solid var(--tl-line); border-radius:10px; background:var(--tl-bg); color:var(--tl-ink); }
+    #tlResa input:focus,#tlResa textarea:focus{ outline:2px solid var(--tl-green); background:#fff; }
+    #tlResa .tl-field{ margin-bottom:14px; }
+    #tlResa .tl-two{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    #tlResa .tl-covers{ display:flex; gap:8px; flex-wrap:wrap; }
+    #tlResa .tl-covers button{ flex:1; min-width:44px; border:1px solid var(--tl-line); background:var(--tl-bg);
+      border-radius:10px; padding:11px 0; font:inherit; font-weight:600; cursor:pointer; }
+    #tlResa .tl-covers button.on{ background:var(--tl-green); color:#fff; border-color:var(--tl-green); }
+    #tlResa .tl-submit{ width:100%; border:0; background:var(--tl-green); color:#fff; font:inherit; font-weight:700;
+      font-size:16px; padding:14px; border-radius:12px; cursor:pointer; margin-top:4px; }
+    #tlResa .tl-submit:hover{ filter:brightness(.93); }
+    #tlResa .tl-submit:disabled{ opacity:.6; cursor:default; }
+    #tlResa .tl-msg{ text-align:center; padding:26px 10px; }
+    #tlResa .tl-msg .tl-ok{ font-size:42px; }
+    #tlResa .tl-msg h3{ font-size:19px; margin:10px 0 6px; }
+    #tlResa .tl-msg p{ color:var(--tl-soft); font-size:14px; margin:0; }
+    #tlResa .tl-err{ background:#f8e6e1; color:#c0492f; font-size:13px; padding:9px 12px; border-radius:9px; margin-bottom:12px; display:none; }
+  </style>
+
+  <div class="tl-form">
+    <h2 class="tl-title">Réserver une table</h2>
+    <p class="tl-sub">Remplissez ce formulaire, le restaurant vous confirmera votre réservation.</p>
+    <div class="tl-err"></div>
+    <div class="tl-field"><label>Nom</label><input class="tl-name" placeholder="Votre nom" /></div>
+    <div class="tl-field tl-two">
+      <div><label>Date</label><input class="tl-date" type="date" /></div>
+      <div><label>Heure</label><input class="tl-time" type="time" value="19:30" /></div>
+    </div>
+    <div class="tl-field"><label>Nombre de personnes</label><div class="tl-covers"></div></div>
+    <div class="tl-field"><label>Téléphone</label><input class="tl-phone" placeholder="07X XXX XX XX" /></div>
+    <div class="tl-field"><label>Remarque (optionnel)</label><textarea class="tl-note" rows="2" placeholder="Allergies, occasion, chaise haute…"></textarea></div>
+    <button class="tl-submit">Envoyer ma demande</button>
+  </div>
+  <div class="tl-msg" style="display:none;">
+    <div class="tl-ok">✅</div><h3>Demande envoyée !</h3>
+    <p>Le restaurant a bien reçu votre demande de réservation et vous confirmera bientôt. Merci !</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const ROOT = document.getElementById('tlResa');
+  const SB_URL = 'https://fgjdpxmffreggjqnxxwm.supabase.co';
+  const SB_KEY = 'sb_publishable_shN_fx2l80aNF2H5r6qSNw_-PWGPvjr';
+  const SLUG = ROOT.getAttribute('data-resto') || 'demo';
+  const q = s => ROOT.querySelector(s);
+  const sb = window.supabase.createClient(SB_URL, SB_KEY);
+  let covers = 2, RESTO_ID = null;
+
+  const d = new Date();
+  q('.tl-date').value = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+
+  q('.tl-covers').innerHTML = [1,2,3,4,5,6,8].map(n=>'<button data-c="'+n+'" class="'+(n===2?'on':'')+'">'+n+(n===8?'+':'')+'</button>').join('');
+  q('.tl-covers').querySelectorAll('[data-c]').forEach(b=> b.onclick=()=>{ q('.tl-covers').querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); covers=+b.dataset.c; });
+
+  sb.from('restaurants').select('id,name').eq('slug',SLUG).single().then(({data})=>{ if(data){ RESTO_ID=data.id; if(data.name) q('.tl-title').textContent='Réserver — '+data.name; } });
+
+  function showErr(m){ const e=q('.tl-err'); e.textContent=m; e.style.display='block'; }
+
+  q('.tl-submit').onclick = async ()=>{
+    const name = q('.tl-name').value.trim();
+    if(!name){ showErr('Merci d\'indiquer votre nom.'); return; }
+    if(!RESTO_ID){ showErr('Réessayez dans un instant.'); return; }
+    q('.tl-err').style.display='none';
+    const btn = q('.tl-submit'); btn.disabled=true; btn.textContent='Envoi…';
+    const { error } = await sb.from('reservations').insert({
+      restaurant_id: RESTO_ID, name, phone: q('.tl-phone').value.trim()||null,
+      covers, date: q('.tl-date').value, time: q('.tl-time').value||'19:30',
+      notes: q('.tl-note').value.trim()||null, status:'nouvelle', source:'web'
+    });
+    if(error){ btn.disabled=false; btn.textContent='Envoyer ma demande'; showErr('Une erreur est survenue. Réessayez.'); return; }
+    q('.tl-form').style.display='none';
+    ROOT.querySelector('.tl-msg').style.display='block';
+  };
+})();
+</script>

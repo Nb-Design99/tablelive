@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Réserver une table</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+<style>
+  /* ---- Widget de réservation TableLive (styles "scopés" pour ne pas casser le site hôte) ---- */
+  .tl-resa { --tl-green:#1f7a52; --tl-ink:#18201d; --tl-soft:#5a6661; --tl-line:#e6e9e6; --tl-bg:#f6f7f5;
+    font-family:'DM Sans',system-ui,sans-serif; color:var(--tl-ink); max-width:440px; margin:0 auto;
+    background:#fff; border:1px solid var(--tl-line); border-radius:16px; padding:22px; box-sizing:border-box;
+    box-shadow:0 8px 30px rgba(20,30,25,.06); }
+  .tl-resa *, .tl-resa *::before, .tl-resa *::after { box-sizing:border-box; }
+  .tl-resa h2 { font-size:20px; margin:0 0 4px; }
+  .tl-resa .tl-sub { color:var(--tl-soft); font-size:13.5px; margin:0 0 18px; }
+  .tl-resa label { display:block; font-size:13px; font-weight:600; margin:0 0 6px; }
+  .tl-resa input, .tl-resa textarea { width:100%; font:inherit; font-size:15px; padding:11px 13px;
+    border:1px solid var(--tl-line); border-radius:10px; background:var(--tl-bg); color:var(--tl-ink); }
+  .tl-resa input:focus, .tl-resa textarea:focus { outline:2px solid var(--tl-green); background:#fff; }
+  .tl-resa .tl-field { margin-bottom:14px; }
+  .tl-resa .tl-two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .tl-resa .tl-covers { display:flex; gap:8px; flex-wrap:wrap; }
+  .tl-resa .tl-covers button { flex:1; min-width:44px; border:1px solid var(--tl-line); background:var(--tl-bg);
+    border-radius:10px; padding:11px 0; font:inherit; font-weight:600; cursor:pointer; }
+  .tl-resa .tl-covers button.on { background:var(--tl-green); color:#fff; border-color:var(--tl-green); }
+  .tl-resa .tl-submit { width:100%; border:0; background:var(--tl-green); color:#fff; font:inherit; font-weight:700;
+    font-size:16px; padding:14px; border-radius:12px; cursor:pointer; margin-top:4px; }
+  .tl-resa .tl-submit:hover { background:#1a6845; }
+  .tl-resa .tl-submit:disabled { opacity:.6; cursor:default; }
+  .tl-resa .tl-msg { text-align:center; padding:26px 10px; }
+  .tl-resa .tl-msg .tl-ok { font-size:42px; }
+  .tl-resa .tl-msg h3 { font-size:19px; margin:10px 0 6px; }
+  .tl-resa .tl-msg p { color:var(--tl-soft); font-size:14px; margin:0; }
+  .tl-resa .tl-err { background:#f8e6e1; color:#c0492f; font-size:13px; padding:9px 12px; border-radius:9px; margin-bottom:12px; display:none; }
+</style>
+</head>
+<body style="margin:0;background:#eef1ee;padding:24px;">
+  <div class="tl-resa" id="tlResa">
+    <div id="tlForm">
+      <h2 id="tlTitle">Réserver une table</h2>
+      <p class="tl-sub" id="tlSub">Remplissez ce formulaire, le restaurant vous confirmera votre réservation.</p>
+      <div class="tl-err" id="tlErr"></div>
+      <div class="tl-field"><label>Nom</label><input id="tlName" placeholder="Votre nom" /></div>
+      <div class="tl-field tl-two">
+        <div><label>Date</label><input id="tlDate" type="date" /></div>
+        <div><label>Heure</label><input id="tlTime" type="time" value="19:30" /></div>
+      </div>
+      <div class="tl-field"><label>Nombre de personnes</label>
+        <div class="tl-covers" id="tlCovers"></div>
+      </div>
+      <div class="tl-field"><label>Téléphone</label><input id="tlPhone" placeholder="07X XXX XX XX" /></div>
+      <div class="tl-field"><label>Remarque (optionnel)</label><textarea id="tlNote" rows="2" placeholder="Allergies, occasion, chaise haute…"></textarea></div>
+      <button class="tl-submit" id="tlSubmit">Envoyer ma demande</button>
+    </div>
+    <div class="tl-msg" id="tlDone" style="display:none;">
+      <div class="tl-ok">✅</div>
+      <h3>Demande envoyée !</h3>
+      <p id="tlDoneTxt">Le restaurant a bien reçu votre demande de réservation et vous confirmera bientôt. Merci !</p>
+    </div>
+  </div>
+
+<script>
+  // ===== Configuration =====
+  const SB_URL = 'https://fgjdpxmffreggjqnxxwm.supabase.co';
+  const SB_KEY = 'sb_publishable_shN_fx2l80aNF2H5r6qSNw_-PWGPvjr';
+  const SLUG = new URLSearchParams(location.search).get('r') || 'demo';   // ?r=slug-du-resto
+
+  const $ = s => document.querySelector(s);
+  const sb = window.supabase.createClient(SB_URL, SB_KEY);
+  let covers = 2, RESTO_ID = null;
+
+  // date du jour par défaut (locale)
+  (function(){ const d=new Date(); $('#tlDate').value = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
+
+  // sélecteur de couverts
+  $('#tlCovers').innerHTML = [1,2,3,4,5,6,8].map(n=>`<button data-c="${n}" class="${n===2?'on':''}">${n}${n===8?'+':''}</button>`).join('');
+  $('#tlCovers').querySelectorAll('[data-c]').forEach(b=> b.onclick=()=>{ $('#tlCovers').querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); covers=+b.dataset.c; });
+
+  // résoudre le restaurant + son nom
+  (async function(){
+    const { data } = await sb.from('restaurants').select('id,name').eq('slug', SLUG).single();
+    if(data){ RESTO_ID = data.id; if(data.name){ $('#tlTitle').textContent = 'Réserver — ' + data.name; } }
+  })();
+
+  function showErr(m){ const e=$('#tlErr'); e.textContent=m; e.style.display='block'; }
+
+  $('#tlSubmit').onclick = async ()=>{
+    const name = $('#tlName').value.trim();
+    if(!name){ showErr('Merci d\'indiquer votre nom.'); return; }
+    if(!RESTO_ID){ showErr('Restaurant introuvable, réessayez dans un instant.'); return; }
+    $('#tlErr').style.display='none';
+    const btn = $('#tlSubmit'); btn.disabled=true; btn.textContent='Envoi…';
+    const { error } = await sb.from('reservations').insert({
+      restaurant_id: RESTO_ID, name,
+      phone: $('#tlPhone').value.trim() || null,
+      covers,
+      date: $('#tlDate').value,
+      time: $('#tlTime').value || '19:30',
+      notes: $('#tlNote').value.trim() || null,
+      status: 'nouvelle', source: 'web'
+    });
+    if(error){ btn.disabled=false; btn.textContent='Envoyer ma demande'; showErr('Une erreur est survenue. Réessayez.'); return; }
+    $('#tlForm').style.display='none';
+    $('#tlDone').style.display='block';
+  };
+</script>
+</body>
+</html>
