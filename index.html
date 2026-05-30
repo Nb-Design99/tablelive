@@ -6,6 +6,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex, nofollow" />
 <title>TableLive — Réservations & Plan de salle</title>
+<!-- PWA : app installable + hors-ligne -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#1f7a52" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="TableLive" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  }
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Cormorant+Garamond:ital,wght@0,600;1,600&display=swap" rel="stylesheet" />
@@ -403,6 +417,27 @@
     .shift-hour-row { flex-wrap:wrap; }
     .seg { flex-wrap:wrap; }
   }
+
+  /* ===== Tablette (ex. iPad au comptoir) : on garde la barre latérale mais plus compacte ===== */
+  @media (min-width: 761px) and (max-width: 1100px){
+    .app { grid-template-columns: 200px 1fr; }
+    .side { padding-left:14px; padding-right:14px; }
+    .content { padding:22px 22px 28px; }
+    .stats { grid-template-columns: repeat(2,1fr); }
+    .res-grid { grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); }
+    /* le panneau du plan passe sous la salle pour laisser respirer le plan */
+    .plan-wrap { grid-template-columns: 1fr; }
+    .plan-side { position:static; max-height:none; }
+  }
+
+  /* ===== Téléphone en paysage : la barre du bas mangerait trop de hauteur ===== */
+  @media (max-width: 900px) and (orientation: landscape) and (max-height: 520px){
+    .side { flex-direction:column; top:0; bottom:0; right:auto; width:64px; padding:8px 6px; box-shadow:2px 0 16px rgba(0,0,0,.14); }
+    .nav { flex-direction:column; }
+    .nav button { font-size:9.5px; padding:7px 2px; }
+    .app { grid-template-columns: 64px 1fr; }
+    .content { padding:14px 16px 16px; }
+  }
 </style>
 </head>
 <body>
@@ -598,6 +633,10 @@ const LS_KEY = 'tablelive_v14';
 let scale = 64;            // pixels par mètre — recalculé pour faire tenir le plan dans le cadre
 const todayISO = () => new Date().toISOString().slice(0,10);
 const px = m => Math.round(m*scale);
+// px calé sur la grille : une case = un nombre entier de pixels, et les longueurs
+// (multiples de 80 cm) en dérivent — évite que les tables se décalent du quadrillage
+// quand l'échelle est petite (mobile). cf. renderPlan().
+const cpx = m => Math.round(m / GRID) * px(GRID);
 const snap = m => Math.round(m*10)/10;     // snap to 0.1 m
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
 const UNIT = 0.8;          // côté d'un carré = 2 places (= une case de la grille de 80 cm)
@@ -717,7 +756,7 @@ function applyRealtime(payload){
     const r = rowToResa(payload.new);
     const i = state.resas.findIndex(x=>x.id===r.id);
     if(i>=0) state.resas[i]=r;
-    else { state.resas.push(r); if(payload.new.source==='web') toast('Nouvelle réservation en ligne', `${r.name} · ${r.covers}p · ${r.time}`, '📩'); }
+    else { state.resas.push(r); if(payload.new.source==='web'){ toast('Nouvelle réservation en ligne', `${r.name} · ${r.covers}p · ${r.time}`, '📩'); ping(); } }
   }
   cacheLocal(); rerenderCurrent();
 }
@@ -781,6 +820,20 @@ function toast(title, sub, ico='🔔'){
   el.innerHTML = `<div class="t-ico">${ico}</div><div><b>${title}</b><small>${sub||''}</small></div>`;
   $('#toasts').appendChild(el);
   setTimeout(()=>{ el.style.transition='opacity .4s, transform .4s'; el.style.opacity=0; el.style.transform='translateX(120%)'; setTimeout(()=>el.remove(),400); }, 4200);
+}
+
+// petit "ding" à l'arrivée d'une réservation en ligne (silencieux si l'audio n'est pas encore débloqué)
+let _audioCtx = null;
+function ping(){
+  try {
+    _audioCtx = _audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    if(_audioCtx.state==='suspended') _audioCtx.resume();
+    const o=_audioCtx.createOscillator(), g=_audioCtx.createGain(), t=_audioCtx.currentTime;
+    o.type='sine'; o.frequency.setValueAtTime(880,t); o.frequency.setValueAtTime(1320,t+0.12);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.18,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.5);
+    o.connect(g).connect(_audioCtx.destination); o.start(t); o.stop(t+0.5);
+  } catch(e){}
 }
 
 // ============== Navigation ==============
@@ -1117,7 +1170,7 @@ function makeZoneInteractive(el, z){
       } else {
         z.x=clamp(snapGrid(ox+dxm), 0, snap(room().floor.w-z.w));
         z.y=clamp(snapGrid(oy+dym), 0, snap(room().floor.h-z.h));
-        el.style.left=px(z.x)+'px'; el.style.top=px(z.y)+'px';
+        el.style.left=cpx(z.x)+'px'; el.style.top=cpx(z.y)+'px';
       }
     };
     const up = ()=>{
@@ -1166,10 +1219,14 @@ function renderPlan(){
   const availW = Math.max(220, wrap.clientWidth - 56);
   const availH = clamp(window.innerHeight - 260, 320, 580);
   scale = clamp(Math.min(availW/room().floor.w, availH/room().floor.h), 14, 90);
-  floor.style.setProperty('--cell', px(GRID)+'px');
-  floor.style.setProperty('--meter', px(GRID)+'px');
-  floor.style.width = px(room().floor.w)+'px';
-  floor.style.height = px(room().floor.h)+'px';
+  // Pixels alignés sur la grille : une case = un entier de pixels, et tout
+  // (tables, salle, séparations) en dérive — sinon les arrondis successifs
+  // décalent les tables du quadrillage aux petites échelles (mobile).
+  const cellPx = px(GRID);                       // taille d'une case de 80 cm, en px entiers
+  floor.style.setProperty('--cell', cellPx+'px');
+  floor.style.setProperty('--meter', cellPx+'px');
+  floor.style.width = cpx(room().floor.w)+'px';
+  floor.style.height = cpx(room().floor.h)+'px';
   floor.querySelectorAll('.tbl, .dim-label, .zone, .tbl-menu').forEach(e=>e.remove());
   $('#floorHint').style.display = room().tables.length? 'none':'grid';
 
@@ -1182,7 +1239,7 @@ function renderPlan(){
     const sel = selectedZone===z.id;
     const el = document.createElement('div');
     el.className = 'zone '+z.kind + (sel?' selected':'');
-    el.style.left = px(z.x)+'px'; el.style.top = px(z.y)+'px';
+    el.style.left = cpx(z.x)+'px'; el.style.top = cpx(z.y)+'px';
     el.style.width = px(z.w)+'px'; el.style.height = px(z.h)+'px';
     el.dataset.zid = z.id;
     el.innerHTML = `<span>${z.label||''}</span>` + ((editMode && sel)?`<div class="rh" data-rh></div>`:'');
@@ -1196,15 +1253,15 @@ function renderPlan(){
     const sel = selectedTable===t.id;
     const el = document.createElement('div');
     el.className = `tbl sq ${statusCls} ${sel?'selected':''}`;
-    el.style.left = px(t.x)+'px'; el.style.top = px(t.y)+'px';
-    el.style.width = px(t.w)+'px'; el.style.height = px(t.h)+'px';
+    el.style.left = cpx(t.x)+'px'; el.style.top = cpx(t.y)+'px';
+    el.style.width = cpx(t.w)+'px'; el.style.height = cpx(t.h)+'px';
     el.style.borderRadius = Math.min(8, Math.max(2, Math.round(scale*0.08)))+'px';   // arrondi proportionnel (carré net même en petit)
     el.dataset.id = t.id;
     // lignes de séparation : une table de N carrés montre N-1 traits
     const cols = Math.max(1, Math.round(t.w/UNIT)), rows = Math.max(1, Math.round(t.h/UNIT));
     let div = '';
-    for(let i=1;i<cols;i++) div += `<span class="tdiv" style="left:${px(i*UNIT)}px;top:0;bottom:0;border-left:1px dashed currentColor"></span>`;
-    for(let j=1;j<rows;j++) div += `<span class="tdiv" style="top:${px(j*UNIT)}px;left:0;right:0;border-top:1px dashed currentColor"></span>`;
+    for(let i=1;i<cols;i++) div += `<span class="tdiv" style="left:${cpx(i*UNIT)}px;top:0;bottom:0;border-left:1px dashed currentColor"></span>`;
+    for(let j=1;j<rows;j++) div += `<span class="tdiv" style="top:${cpx(j*UNIT)}px;left:0;right:0;border-top:1px dashed currentColor"></span>`;
     el.innerHTML = `<span class="tnum">${t.num}</span><span class="seats">${t.cap}</span>${div}`
       + (occ?`<div class="who">${occ.name.split(' ')[0]} · ${occ.time}</div>`:'');
     floor.appendChild(el);
@@ -1450,7 +1507,7 @@ function makeInteractive(el, t){
       if(Math.abs(ev.clientX-sx)>3||Math.abs(ev.clientY-sy)>3) moved=true;
       t.x=clamp(snapGrid(ox+dxm), 0, snap(room().floor.w-t.w));
       t.y=clamp(snapGrid(oy+dym), 0, snap(room().floor.h-t.h));
-      el.style.left=px(t.x)+'px'; el.style.top=px(t.y)+'px';
+      el.style.left=cpx(t.x)+'px'; el.style.top=cpx(t.y)+'px';
       // table située sous le curseur (autre que celle déplacée)
       const under = document.elementFromPoint(ev.clientX, ev.clientY);
       const tb = under ? under.closest('.tbl') : null;
