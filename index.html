@@ -382,8 +382,9 @@
     .nav button { position:relative; flex:1; flex-direction:column; gap:3px; padding:8px 2px; font-size:10.5px; line-height:1.15; text-align:center; justify-content:flex-start; border-radius:12px; }
     .nav button .ico { width:auto; font-size:19px; }
     .nav .badge { position:absolute; top:3px; left:50%; margin-left:6px; transform:none; }
-    .main { overflow:visible; }
-    .content { padding:16px 13px 92px; overflow:visible; }
+    .main { overflow:visible; min-width:0; }
+    .content { padding:16px 13px 92px; overflow:visible; min-width:0; }
+    .panel { min-width:0; }
     .topbar { padding:12px 14px; flex-wrap:wrap; gap:10px; }
     .topbar h1 { font-size:18px; }
     .topbar .sub { font-size:12px; }
@@ -396,7 +397,11 @@
     .floor-scroll { max-height:none; padding:12px; }
     .res-search { max-width:none; }
     .date-bar, .plan-services, .plan-rooms, .plan-top { gap:6px; }
-    .day-strip { overflow-x:auto; }
+    .day-strip { flex-wrap:wrap; }                 /* tous les jours visibles (sur 2 lignes) */
+    .staff-grid-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%; }
+    .staff-grid { min-width:600px; width:auto; }    /* colonnes lisibles → glisse pour voir toute la semaine */
+    .shift-hour-row { flex-wrap:wrap; }
+    .seg { flex-wrap:wrap; }
   }
 </style>
 </head>
