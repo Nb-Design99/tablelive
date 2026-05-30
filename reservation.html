@@ -95,9 +95,9 @@
   const SLUG = new URLSearchParams(location.search).get('r') || 'demo';   // ?r=slug-du-resto
 
   const $ = s => document.querySelector(s);
-  const sb = window.supabase.createClient(SB_URL, SB_KEY);
   let covers = 2, RESTO_ID = null;
 
+  // ---- Interface (indépendante du réseau : s'affiche même si le CDN tarde) ----
   // date du jour par défaut (locale)
   (function(){ const d=new Date(); $('#tlDate').value = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
 
@@ -105,10 +105,17 @@
   $('#tlCovers').innerHTML = [1,2,3,4,5,6,8].map(n=>`<button data-c="${n}" class="${n===2?'on':''}">${n}${n===8?'+':''}</button>`).join('');
   $('#tlCovers').querySelectorAll('[data-c]').forEach(b=> b.onclick=()=>{ $('#tlCovers').querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); covers=+b.dataset.c; });
 
+  // ---- Supabase (protégé : si le CDN ne charge pas, l'app ne plante pas) ----
+  let sb = null;
+  try { if(window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY); } catch(e){}
+
   // résoudre le restaurant + son nom
   (async function(){
-    const { data } = await sb.from('restaurants').select('id,name').eq('slug', SLUG).single();
-    if(data){ RESTO_ID = data.id; if(data.name){ $('#tlTitle').textContent = 'Réserver — ' + data.name; } }
+    if(!sb) return;
+    try {
+      const { data } = await sb.from('restaurants').select('id,name').eq('slug', SLUG).single();
+      if(data){ RESTO_ID = data.id; if(data.name){ $('#tlTitle').textContent = 'Réserver — ' + data.name; } }
+    } catch(e){}
   })();
 
   function showErr(m){ const e=$('#tlErr'); e.textContent=m; e.style.display='block'; }
@@ -116,18 +123,22 @@
   $('#tlSubmit').onclick = async ()=>{
     const name = $('#tlName').value.trim();
     if(!name){ showErr('Merci d\'indiquer votre nom.'); return; }
+    if(!sb){ showErr('Service momentanément indisponible. Vérifiez votre connexion et réessayez.'); return; }
     if(!RESTO_ID){ showErr('Restaurant introuvable, réessayez dans un instant.'); return; }
     $('#tlErr').style.display='none';
     const btn = $('#tlSubmit'); btn.disabled=true; btn.textContent='Envoi…';
-    const { error } = await sb.from('reservations').insert({
-      restaurant_id: RESTO_ID, name,
-      phone: $('#tlPhone').value.trim() || null,
-      covers,
-      date: $('#tlDate').value,
-      time: $('#tlTime').value || '19:30',
-      notes: $('#tlNote').value.trim() || null,
-      status: 'nouvelle', source: 'web'
-    });
+    let error = null;
+    try {
+      ({ error } = await sb.from('reservations').insert({
+        restaurant_id: RESTO_ID, name,
+        phone: $('#tlPhone').value.trim() || null,
+        covers,
+        date: $('#tlDate').value,
+        time: $('#tlTime').value || '19:30',
+        notes: $('#tlNote').value.trim() || null,
+        status: 'nouvelle', source: 'web'
+      }));
+    } catch(e){ error = e; }
     if(error){ btn.disabled=false; btn.textContent='Envoyer ma demande'; showErr('Une erreur est survenue. Réessayez.'); return; }
     $('#tlForm').style.display='none';
     $('#tlDone').style.display='block';
