@@ -688,6 +688,7 @@ function cacheLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify(state))
 // ===== Supabase : réservations en ligne + temps réel =====
 const SB_URL = 'https://fgjdpxmffreggjqnxxwm.supabase.co';
 const SB_KEY = 'sb_publishable_shN_fx2l80aNF2H5r6qSNw_-PWGPvjr';
+const APP_SLUG = new URLSearchParams(location.search).get('r') || 'demo';   // ?r=slug → resto affiché
 let sb = null, RESTO_ID = null, syncTimer = null;
 const isUuid = s => typeof s==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s);
 const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('r'+Date.now()+Math.floor(Math.random()*1e6));
@@ -719,16 +720,18 @@ async function bootstrap(){
   if(!window.supabase){ console.warn('supabase-js non chargé'); return; }
   try {
     sb = window.supabase.createClient(SB_URL, SB_KEY);
-    const { data: rest, error } = await sb.from('restaurants').select('id').eq('slug','demo').single();
+    const { data: rest, error } = await sb.from('restaurants').select('id').eq('slug', APP_SLUG).single();
     if(error || !rest){ console.warn('resto introuvable:', error && error.message); return; }
     RESTO_ID = rest.id;
     const { data: rows, error: e2 } = await sb.from('reservations').select('*').eq('restaurant_id', RESTO_ID).order('created_at', { ascending:true });
     if(e2){ console.warn('chargement réservations:', e2.message); return; }
     if(rows && rows.length){
       state.resas = rows.map(rowToResa);
-    } else {
+    } else if(APP_SLUG==='demo'){
       state.resas.forEach(r=>{ if(!isUuid(r.id)) r.id = newId(); });
       await sb.from('reservations').upsert(state.resas.map(resaToRow));
+    } else {
+      state.resas = [];   // nouveau restaurant : démarre sans réservation
     }
     cacheLocal();
     sb.channel('resas-'+RESTO_ID)
