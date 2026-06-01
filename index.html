@@ -371,8 +371,8 @@
   .assign-list .dotcap { width:26px;height:26px;border-radius:7px;background:#10211a;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;}
 
   /* ---------- Connexion (Phase 2) ---------- */
-  #authGate { position:fixed; inset:0; z-index:300; display:none; place-items:center; padding:20px; background:linear-gradient(135deg,#10211a,#1f7a52); }
-  #authGate.show { display:grid; }
+  #authGate, #stateMsg { position:fixed; inset:0; z-index:300; display:none; place-items:center; padding:20px; background:linear-gradient(135deg,#10211a,#1f7a52); }
+  #authGate.show, #stateMsg.show { display:grid; }
   .auth-card { background:#fff; border-radius:18px; padding:30px 26px; width:100%; max-width:380px; box-shadow:0 30px 80px rgba(0,0,0,.35); }
   .auth-logo { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:600; color:var(--green); text-align:center; }
   .auth-card h2 { font-size:18px; text-align:center; margin:2px 0 18px; }
@@ -611,10 +611,13 @@
     <div class="auth-err" id="authErr"></div>
     <div class="field"><label>E-mail</label><input id="authEmail" type="email" placeholder="vous@restaurant.ch" autocomplete="username" /></div>
     <div class="field"><label>Mot de passe</label><input id="authPass" type="password" placeholder="••••••••" autocomplete="current-password" /></div>
+    <div class="field" id="authCodeField" style="display:none"><label>Code d'accès</label><input id="authCode" placeholder="Fourni par NB-Design" /></div>
     <button class="btn primary" id="authSubmit" style="width:100%;justify-content:center;padding:12px">Se connecter</button>
     <div class="auth-toggle"><span id="authToggleTxt">Pas encore de compte ?</span> <a id="authToggle">Créer un compte</a></div>
   </div>
 </div>
+
+<div id="stateMsg"></div>
 
 <div id="toasts"></div>
 
@@ -768,32 +771,39 @@ function applyRealtime(payload){
   }
   cacheLocal(); rerenderCurrent();
 }
-let booted = false;
+let channelSub = null;
 async function bootstrap(){
   if(!sb){ console.warn('supabase-js non chargé'); return; }
-  if(booted) return; booted = true;
   try {
-    const { data: rest, error } = await sb.from('restaurants').select('id,name').eq('slug', APP_SLUG).single();
-    if(error || !rest){ console.warn('resto introuvable:', error && error.message); return; }
+    const { data:{ user } } = await sb.auth.getUser();
+    if(!user){ $('#authGate').classList.add('show'); return; }
+    let { data: rooms } = await sb.from('restaurants').select('id,name,active,slug').eq('owner_id', user.id);
+    rooms = rooms || [];
+    const rest = rooms.find(r=>r.slug===APP_SLUG) || rooms[0] || null;
+    if(!rest){ showState('Aucun restaurant associé', "Ce compte n'est relié à aucun restaurant. Contactez NB-Design pour activer votre accès."); return; }
+    if(rest.active === false){ showState('Compte suspendu', 'Votre accès est temporairement suspendu. Contactez NB-Design pour le réactiver.'); return; }
+    hideState();
     RESTO_ID = rest.id; RESTO_NAME = rest.name;
     const { data: rows, error: e2 } = await sb.from('reservations').select('*').eq('restaurant_id', RESTO_ID).order('created_at', { ascending:true });
     if(e2){ console.warn('chargement réservations:', e2.message); return; }
-    if(rows && rows.length){
-      state.resas = rows.map(rowToResa);
-    } else if(APP_SLUG==='demo'){
-      state.resas.forEach(r=>{ if(!isUuid(r.id)) r.id = newId(); });
-      await sb.from('reservations').upsert(state.resas.map(resaToRow));
-    } else {
-      state.resas = [];   // nouveau restaurant : démarre sans réservation
-    }
+    state.resas = (rows||[]).map(rowToResa);
     cacheLocal();
-    sb.channel('resas-'+RESTO_ID)
-      .on('postgres_changes', { event:'*', schema:'public', table:'reservations', filter:'restaurant_id=eq.'+RESTO_ID }, applyRealtime)
-      .subscribe();
+    if(!channelSub){
+      channelSub = sb.channel('resas-'+RESTO_ID)
+        .on('postgres_changes', { event:'*', schema:'public', table:'reservations', filter:'restaurant_id=eq.'+RESTO_ID }, applyRealtime)
+        .subscribe();
+    }
     rerenderCurrent();
-    console.log('TableLive connecté à Supabase — réservations:', state.resas.length);
+    console.log('TableLive connecté —', rest.name, '·', state.resas.length, 'réservations');
   } catch(err){ console.warn('bootstrap:', err && (err.message||err)); }
 }
+function showState(title, msg){
+  const el = document.getElementById('stateMsg');
+  el.innerHTML = '<div class="auth-card" style="text-align:center"><div class="auth-logo">TableLive</div><h2>'+title+'</h2><p style="color:var(--ink-soft);font-size:14px;margin:8px 0 18px">'+msg+'</p><button class="btn" id="stateLogout" style="justify-content:center;width:100%">Déconnexion</button></div>';
+  el.classList.add('show');
+  document.getElementById('stateLogout').onclick = async ()=>{ await sb.auth.signOut(); location.reload(); };
+}
+function hideState(){ const el=document.getElementById('stateMsg'); if(el) el.classList.remove('show'); }
 
 // ============== Helpers ==============
 const $ = s => document.querySelector(s);
@@ -1845,6 +1855,7 @@ $('#authToggle').onclick = ()=>{
   $('#authSubmit').textContent = authMode==='login' ? 'Se connecter' : 'Créer le compte';
   $('#authToggleTxt').textContent = authMode==='login' ? 'Pas encore de compte ?' : 'Déjà un compte ?';
   $('#authToggle').textContent = authMode==='login' ? 'Créer un compte' : 'Se connecter';
+  $('#authCodeField').style.display = authMode==='signup' ? 'block' : 'none';
   $('#authErr').style.display='none';
 };
 $('#authSubmit').onclick = async ()=>{
@@ -1853,12 +1864,24 @@ $('#authSubmit').onclick = async ()=>{
   if(!email || !password){ authMsg('Entrez votre e-mail et votre mot de passe.'); return; }
   $('#authErr').style.display='none';
   const btn=$('#authSubmit'), orig=btn.textContent; btn.disabled=true; btn.textContent='…';
-  const res = authMode==='login'
-    ? await sb.auth.signInWithPassword({ email, password })
-    : await sb.auth.signUp({ email, password });
-  btn.disabled=false; btn.textContent=orig;
-  if(res.error){ authMsg(res.error.message); return; }
-  if(authMode==='signup' && !res.data.session){ authMsg('Compte créé ! Vérifiez votre e-mail pour confirmer, puis connectez-vous.', true); authMode='login'; }
+  try {
+    if(authMode==='login'){
+      const res = await sb.auth.signInWithPassword({ email, password });
+      if(res.error){ authMsg(res.error.message); return; }
+      // onAuthStateChange → bootstrap
+    } else {
+      const code = $('#authCode').value.trim();
+      if(!code){ authMsg("Entrez le code d'accès fourni par NB-Design."); return; }
+      const { data: valid } = await sb.rpc('code_is_valid', { p_code: code });
+      if(!valid){ authMsg("Code d'accès invalide ou déjà utilisé."); return; }
+      const res = await sb.auth.signUp({ email, password });
+      if(res.error){ authMsg(res.error.message); return; }
+      if(!res.data.session){ authMsg('Compte créé ! Confirmez votre e-mail, puis connectez-vous.', true); authMode='login'; return; }
+      const claim = await sb.rpc('claim_restaurant', { p_code: code });
+      if(claim.error){ authMsg('Compte créé, mais : '+claim.error.message+'. Contactez NB-Design.'); return; }
+      bootstrap();   // resto désormais relié → on charge
+    }
+  } finally { btn.disabled=false; btn.textContent=orig; }
 };
 $('#logoutBtn').onclick = async ()=>{ if(sb){ await sb.auth.signOut(); location.reload(); } };
 $('#authPass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#authSubmit').click(); });
@@ -1866,7 +1889,7 @@ $('#authPass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#authSubm
 if(sb){
   sb.auth.onAuthStateChange((event, session)=>{
     if(session){ $('#authGate').classList.remove('show'); setTimeout(()=>bootstrap(), 0); }
-    else { $('#authGate').classList.add('show'); booted=false; }
+    else { $('#authGate').classList.add('show'); channelSub=null; }
   });
 } else {
   $('#authGate').classList.add('show');
