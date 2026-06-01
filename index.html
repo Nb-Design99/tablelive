@@ -370,6 +370,22 @@
   .assign-list button.full { opacity:.45; cursor:not-allowed; }
   .assign-list .dotcap { width:26px;height:26px;border-radius:7px;background:#10211a;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;}
 
+  /* ---------- Connexion (Phase 2) ---------- */
+  #authGate { position:fixed; inset:0; z-index:300; display:none; place-items:center; padding:20px; background:linear-gradient(135deg,#10211a,#1f7a52); }
+  #authGate.show { display:grid; }
+  .auth-card { background:#fff; border-radius:18px; padding:30px 26px; width:100%; max-width:380px; box-shadow:0 30px 80px rgba(0,0,0,.35); }
+  .auth-logo { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:600; color:var(--green); text-align:center; }
+  .auth-card h2 { font-size:18px; text-align:center; margin:2px 0 18px; }
+  .auth-card .field { margin-bottom:14px; }
+  .auth-card label { display:block; font-size:13px; font-weight:600; margin-bottom:6px; }
+  .auth-card input { width:100%; box-sizing:border-box; font:inherit; padding:11px 13px; border:1px solid var(--line); border-radius:10px; background:var(--bg); }
+  .auth-card input:focus { outline:2px solid var(--green); background:#fff; }
+  .auth-err { background:var(--red-soft); color:var(--red); font-size:13px; padding:9px 12px; border-radius:9px; margin-bottom:12px; display:none; }
+  .auth-err.ok { background:var(--green-soft); color:var(--green); }
+  .auth-toggle { text-align:center; font-size:13px; color:var(--ink-soft); margin-top:14px; }
+  .auth-toggle a { color:var(--green); font-weight:600; cursor:pointer; }
+  .side-foot a.logout { color:#7fa08e; cursor:pointer; text-decoration:underline; }
+
   /* ================= MOBILE (téléphone) ================= */
   @media (max-width: 760px){
     html, body { width:100%; max-width:100%; overflow-x:hidden; }
@@ -423,7 +439,8 @@
     <div class="side-foot">
       <span class="resto" id="sideResto">Restaurant du Pont</span><br/>
       <span id="sideCity">Sion</span> · Service du soir<br/>
-      <span id="todayLabel"></span>
+      <span id="todayLabel"></span><br/>
+      <a class="logout" id="logoutBtn">Déconnexion</a>
     </div>
   </aside>
 
@@ -587,6 +604,18 @@
   </div>
 </div>
 
+<div id="authGate">
+  <div class="auth-card">
+    <div class="auth-logo">TableLive</div>
+    <h2 id="authTitle">Connexion restaurant</h2>
+    <div class="auth-err" id="authErr"></div>
+    <div class="field"><label>E-mail</label><input id="authEmail" type="email" placeholder="vous@restaurant.ch" autocomplete="username" /></div>
+    <div class="field"><label>Mot de passe</label><input id="authPass" type="password" placeholder="••••••••" autocomplete="current-password" /></div>
+    <button class="btn primary" id="authSubmit" style="width:100%;justify-content:center;padding:12px">Se connecter</button>
+    <div class="auth-toggle"><span id="authToggleTxt">Pas encore de compte ?</span> <a id="authToggle">Créer un compte</a></div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <div class="overlay" id="overlay">
@@ -701,6 +730,7 @@ const EMAILJS_SERVICE = 'service_mjk5afq';
 const EMAILJS_TEMPLATE = 'template_hxrbwic';
 let sb = null, RESTO_ID = null, RESTO_NAME = null, syncTimer = null;
 if(window.emailjs) emailjs.init({ publicKey: EMAILJS_PUBLIC });
+if(window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY);
 const isUuid = s => typeof s==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s);
 const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('r'+Date.now()+Math.floor(Math.random()*1e6));
 const resaToRow = r => ({ id:r.id, restaurant_id:RESTO_ID, name:r.name||'', phone:r.phone||null, email:r.email||null, covers:r.covers||2, date:r.date, time:r.time, notes:r.notes||null, status:r.status||'nouvelle', table_id:r.table||null, walkin:!!r.walkin, source:r.source||'resto' });
@@ -738,10 +768,11 @@ function applyRealtime(payload){
   }
   cacheLocal(); rerenderCurrent();
 }
+let booted = false;
 async function bootstrap(){
-  if(!window.supabase){ console.warn('supabase-js non chargé'); return; }
+  if(!sb){ console.warn('supabase-js non chargé'); return; }
+  if(booted) return; booted = true;
   try {
-    sb = window.supabase.createClient(SB_URL, SB_KEY);
     const { data: rest, error } = await sb.from('restaurants').select('id,name').eq('slug', APP_SLUG).single();
     if(error || !rest){ console.warn('resto introuvable:', error && error.message); return; }
     RESTO_ID = rest.id; RESTO_NAME = rest.name;
@@ -1804,7 +1835,42 @@ $('#restoEditBtn').onclick = ()=>{ restoEdit = !restoEdit; applyRestoLock(); };
 applyRestoInfo();
 $('#todayLabel').textContent = new Date().toLocaleDateString('fr-CH', {weekday:'long', day:'numeric', month:'long'});
 renderResas();
-bootstrap();   // connecte les réservations à Supabase (en ligne + temps réel)
+
+// ---------- Authentification (Phase 2) ----------
+let authMode = 'login';
+function authMsg(m, ok){ const e=$('#authErr'); e.textContent=m; e.className='auth-err'+(ok?' ok':''); e.style.display='block'; }
+$('#authToggle').onclick = ()=>{
+  authMode = authMode==='login' ? 'signup' : 'login';
+  $('#authTitle').textContent = authMode==='login' ? 'Connexion restaurant' : 'Créer votre compte';
+  $('#authSubmit').textContent = authMode==='login' ? 'Se connecter' : 'Créer le compte';
+  $('#authToggleTxt').textContent = authMode==='login' ? 'Pas encore de compte ?' : 'Déjà un compte ?';
+  $('#authToggle').textContent = authMode==='login' ? 'Créer un compte' : 'Se connecter';
+  $('#authErr').style.display='none';
+};
+$('#authSubmit').onclick = async ()=>{
+  if(!sb) return;
+  const email = $('#authEmail').value.trim(), password = $('#authPass').value;
+  if(!email || !password){ authMsg('Entrez votre e-mail et votre mot de passe.'); return; }
+  $('#authErr').style.display='none';
+  const btn=$('#authSubmit'), orig=btn.textContent; btn.disabled=true; btn.textContent='…';
+  const res = authMode==='login'
+    ? await sb.auth.signInWithPassword({ email, password })
+    : await sb.auth.signUp({ email, password });
+  btn.disabled=false; btn.textContent=orig;
+  if(res.error){ authMsg(res.error.message); return; }
+  if(authMode==='signup' && !res.data.session){ authMsg('Compte créé ! Vérifiez votre e-mail pour confirmer, puis connectez-vous.', true); authMode='login'; }
+};
+$('#logoutBtn').onclick = async ()=>{ if(sb){ await sb.auth.signOut(); location.reload(); } };
+$('#authPass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#authSubmit').click(); });
+
+if(sb){
+  sb.auth.onAuthStateChange((event, session)=>{
+    if(session){ $('#authGate').classList.remove('show'); setTimeout(()=>bootstrap(), 0); }
+    else { $('#authGate').classList.add('show'); booted=false; }
+  });
+} else {
+  $('#authGate').classList.add('show');
+}
 </script>
 </body>
 </html>
