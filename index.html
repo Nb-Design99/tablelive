@@ -386,8 +386,26 @@
   .auth-toggle a { color:var(--green); font-weight:600; cursor:pointer; }
   .side-foot a.logout { color:#7fa08e; cursor:pointer; text-decoration:underline; }
 
+  /* ---------- Bandeau démo ---------- */
+  #demoBanner {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 130;
+    background: #10211a; color: #fff; border: 1px solid rgba(255,255,255,.16);
+    padding: 8px 8px 8px 16px; border-radius: 999px;
+    display: none; align-items: center; gap: 14px;
+    box-shadow: 0 14px 38px rgba(0,0,0,.34); font-size: 13.5px;
+  }
+  #demoBanner.show { display: flex; }
+  #demoBanner b { color: var(--gold); }
+  #demoBanner a {
+    background: var(--green); color: #fff; text-decoration: none; font-weight: 700;
+    padding: 8px 15px; border-radius: 999px; white-space: nowrap; transition: background .15s;
+  }
+  #demoBanner a:hover { background: #1a6845; }
+
   /* ================= MOBILE (téléphone) ================= */
   @media (max-width: 760px){
+    #demoBanner { bottom: 76px; width: calc(100% - 22px); justify-content: space-between; gap: 8px; font-size: 12.5px; padding-left: 14px; }
+    #demoBanner a { padding: 8px 12px; }
     html, body { width:100%; max-width:100%; overflow-x:hidden; }
     body { overflow-y:auto; }
     #simulateBtn { display:none; }            /* bouton "Vue client" inutile sur mobile */
@@ -619,6 +637,11 @@
 
 <div id="stateMsg"></div>
 
+<div id="demoBanner">
+  <span>🎬 <b>Mode démo</b> — testez tout librement, rien n'est enregistré.</span>
+  <a href="https://nb-design99.github.io/tablelive-site/#contact" target="_blank" rel="noopener">Obtenir TableLive</a>
+</div>
+
 <div id="toasts"></div>
 
 <div class="overlay" id="overlay">
@@ -628,6 +651,7 @@
 <script>
 // ============== Constants ==============
 const LS_KEY = 'tablelive_v14';
+const DEMO = new URLSearchParams(location.search).has('demo');   // ?demo → démo publique : pas de compte, pas de base, réinit au rechargement
 let scale = 64;            // pixels par mètre — recalculé pour faire tenir le plan dans le cadre
 const todayISO = () => new Date().toISOString().slice(0,10);
 const px = m => Math.round(m*scale);
@@ -703,6 +727,7 @@ const seed = () => {
 
 let state = load();
 function load(){
+  if(DEMO) return seed();   // démo : toujours repartir du jeu d'exemple, sans toucher au localStorage
   try {
     const s = JSON.parse(localStorage.getItem(LS_KEY));
     if(s && s.rooms && s.rooms.length){
@@ -721,7 +746,7 @@ function load(){
 }
 tableDims = state.tableSizes;   // sizeOf lit cette config
 function room(){ return state.rooms[state.currentRoom] || state.rooms[0]; }
-function cacheLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){} }
+function cacheLocal(){ if(DEMO) return; try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){} }
 
 // ===== Supabase : réservations en ligne + temps réel =====
 const SB_URL = 'https://fgjdpxmffreggjqnxxwm.supabase.co';
@@ -1886,7 +1911,12 @@ $('#authSubmit').onclick = async ()=>{
 $('#logoutBtn').onclick = async ()=>{ if(sb){ await sb.auth.signOut(); location.reload(); } };
 $('#authPass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#authSubmit').click(); });
 
-if(sb){
+if(DEMO){
+  // Démo publique : pas de connexion, données d'exemple en mémoire, rien n'est enregistré.
+  $('#demoBanner').classList.add('show');
+  const lo = $('#logoutBtn'); if(lo) lo.style.display='none';
+  setTimeout(()=> toast('Bienvenue dans la démo', 'Réservations, plan de salle, équipe — explorez tout.', '🎬'), 600);
+} else if(sb){
   sb.auth.onAuthStateChange((event, session)=>{
     if(session){ $('#authGate').classList.remove('show'); setTimeout(()=>bootstrap(), 0); }
     else { $('#authGate').classList.add('show'); channelSub=null; }
