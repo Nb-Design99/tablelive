@@ -52,6 +52,7 @@
         <div class="tl-covers" id="tlCovers"></div>
       </div>
       <div class="tl-field"><label>Téléphone</label><input id="tlPhone" placeholder="07X XXX XX XX" /></div>
+      <div class="tl-field"><label>E-mail (pour la confirmation)</label><input id="tlEmail" type="email" placeholder="vous@exemple.ch" /></div>
       <div class="tl-field"><label>Remarque (optionnel)</label><textarea id="tlNote" rows="2" placeholder="Allergies, occasion, chaise haute…"></textarea></div>
       <button class="tl-submit" id="tlSubmit">Envoyer ma demande</button>
     </div>
@@ -96,6 +97,7 @@
     const { error } = await sb.from('reservations').insert({
       restaurant_id: RESTO_ID, name,
       phone: $('#tlPhone').value.trim() || null,
+      email: $('#tlEmail').value.trim() || null,
       covers,
       date: $('#tlDate').value,
       time: $('#tlTime').value || '19:30',

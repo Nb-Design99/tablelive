@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex, nofollow" />
@@ -694,11 +695,27 @@ function cacheLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify(state))
 const SB_URL = 'https://fgjdpxmffreggjqnxxwm.supabase.co';
 const SB_KEY = 'sb_publishable_shN_fx2l80aNF2H5r6qSNw_-PWGPvjr';
 const APP_SLUG = new URLSearchParams(location.search).get('r') || 'demo';   // ?r=slug → resto affiché
-let sb = null, RESTO_ID = null, syncTimer = null;
+// EmailJS (email de confirmation au client)
+const EMAILJS_PUBLIC = 'nPjCUC5qhVJajEm7j';
+const EMAILJS_SERVICE = 'service_mjk5afq';
+const EMAILJS_TEMPLATE = 'template_hxrbwic';
+let sb = null, RESTO_ID = null, RESTO_NAME = null, syncTimer = null;
+if(window.emailjs) emailjs.init({ publicKey: EMAILJS_PUBLIC });
 const isUuid = s => typeof s==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s);
 const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('r'+Date.now()+Math.floor(Math.random()*1e6));
-const resaToRow = r => ({ id:r.id, restaurant_id:RESTO_ID, name:r.name||'', phone:r.phone||null, covers:r.covers||2, date:r.date, time:r.time, notes:r.notes||null, status:r.status||'nouvelle', table_id:r.table||null, walkin:!!r.walkin, source:r.source||'resto' });
-const rowToResa = row => ({ id:row.id, name:row.name, phone:row.phone||'', covers:row.covers, date:row.date, time:row.time, notes:row.notes||'', status:row.status, table:row.table_id||null, walkin:!!row.walkin, source:row.source||'resto' });
+const resaToRow = r => ({ id:r.id, restaurant_id:RESTO_ID, name:r.name||'', phone:r.phone||null, email:r.email||null, covers:r.covers||2, date:r.date, time:r.time, notes:r.notes||null, status:r.status||'nouvelle', table_id:r.table||null, walkin:!!r.walkin, source:r.source||'resto' });
+const rowToResa = row => ({ id:row.id, name:row.name, phone:row.phone||'', email:row.email||'', covers:row.covers, date:row.date, time:row.time, notes:row.notes||'', status:row.status, table:row.table_id||null, walkin:!!row.walkin, source:row.source||'resto' });
+function sendConfirmationEmail(r){
+  if(!window.emailjs || !r.email) {
+    if(!r.email) toast('Pas d\'email client', 'Confirmation non envoyée (email manquant)', '⚠️');
+    return;
+  }
+  emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+    to_email: r.email, name: r.name, resto: RESTO_NAME || (state.resto && state.resto.name) || 'le restaurant',
+    date: fmtFull(r.date), time: r.time, covers: r.covers
+  }).then(()=> toast('Email de confirmation envoyé', r.email, '📧'))
+    .catch(err=>{ console.warn('email:', err); toast('Email non envoyé', 'Vérifiez la config EmailJS', '⚠️'); });
+}
 
 function save(){ cacheLocal(); syncResas(); }
 
@@ -725,9 +742,9 @@ async function bootstrap(){
   if(!window.supabase){ console.warn('supabase-js non chargé'); return; }
   try {
     sb = window.supabase.createClient(SB_URL, SB_KEY);
-    const { data: rest, error } = await sb.from('restaurants').select('id').eq('slug', APP_SLUG).single();
+    const { data: rest, error } = await sb.from('restaurants').select('id,name').eq('slug', APP_SLUG).single();
     if(error || !rest){ console.warn('resto introuvable:', error && error.message); return; }
-    RESTO_ID = rest.id;
+    RESTO_ID = rest.id; RESTO_NAME = rest.name;
     const { data: rows, error: e2 } = await sb.from('reservations').select('*').eq('restaurant_id', RESTO_ID).order('created_at', { ascending:true });
     if(e2){ console.warn('chargement réservations:', e2.message); return; }
     if(rows && rows.length){
@@ -901,7 +918,7 @@ $('#resGrid').addEventListener('click', e=>{
 function resaAction(act, id){
   const r = state.resas.find(x=>x.id===id);
   if(!r) return;
-  if(act==='confirm'){ r.status='confirmee'; save(); renderResas(); toast('Réservation confirmée', `${r.name} · ${r.time}`, '✅'); }
+  if(act==='confirm'){ r.status='confirmee'; save(); renderResas(); toast('Réservation confirmée', `${r.name} · ${r.time}`, '✅'); sendConfirmationEmail(r); }
   else if(act==='seat'){ r.status='installee'; save(); renderResas(); toast('Clients installés', r.name, '🍴'); }
   else if(act==='cancel'){ r.status='annulee'; r.table=null; save(); renderResas(); toast('Réservation annulée', r.name, '✖️'); }
   else if(act==='restore'){ r.status='nouvelle'; save(); renderResas(); toast('Réservation réactivée', r.name, '↺'); }
@@ -961,6 +978,7 @@ function resaForm(client){
         <div class="covers" id="f-covers">${[1,2,3,4,5,6,8].map(n=>`<button data-c="${n}" class="${n===2?'active':''}">${n}${n===8?'+':''}</button>`).join('')}</div>
       </div>
       <div class="field"><label>Téléphone</label><input id="f-phone" placeholder="07X XXX XX XX" /></div>
+      <div class="field"><label>E-mail (pour la confirmation)</label><input id="f-email" type="email" placeholder="client@exemple.ch" /></div>
       <div class="field"><label>Remarque (optionnel)</label><textarea id="f-note" rows="2" placeholder="Allergies, occasion, chaise haute…"></textarea></div>
       <button class="btn primary" id="f-submit" style="width:100%;justify-content:center;padding:12px">${client?'Envoyer ma réservation':'Ajouter la réservation'}</button>
     </div>`);
@@ -970,7 +988,7 @@ function resaForm(client){
   });
   $('#f-submit').onclick = ()=>{
     const name = $('#f-name').value.trim() || (client?'Client web':'Sans nom');
-    const r = { id:newId(), name, phone:$('#f-phone').value.trim(),
+    const r = { id:newId(), name, phone:$('#f-phone').value.trim(), email:$('#f-email').value.trim(),
       covers, date:$('#f-date').value||viewDate, time:$('#f-time').value||'19:30',
       notes:$('#f-note').value.trim(), status:'nouvelle', table:null };
     state.resas.push(r); save(); closeModal();
