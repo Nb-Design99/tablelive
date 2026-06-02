@@ -1249,9 +1249,11 @@ function renderPlan(){
   const wrap = floor.parentElement;
   const availW = Math.max(220, wrap.clientWidth - 56);
   const availH = clamp(window.innerHeight - 260, 320, 580);
-  scale = clamp(Math.min(availW/room().floor.w, availH/room().floor.h), 14, 90);
-  floor.style.setProperty('--cell', px(GRID)+'px');
-  floor.style.setProperty('--meter', px(GRID)+'px');
+  const fit = clamp(Math.min(availW/room().floor.w, availH/room().floor.h), 14, 90);
+  const CELL = Math.max(8, Math.round(GRID*fit));   // taille ENTIÈRE d'une case (= 1 carré de 2 places), en px
+  scale = CELL/GRID;                                  // l'échelle dérive de la case → les tables tombent pile sur le quadrillage
+  floor.style.setProperty('--cell', CELL+'px');
+  floor.style.setProperty('--meter', CELL+'px');
   floor.style.width = px(room().floor.w)+'px';
   floor.style.height = px(room().floor.h)+'px';
   floor.querySelectorAll('.tbl, .dim-label, .zone, .tbl-menu').forEach(e=>e.remove());
@@ -1289,7 +1291,12 @@ function renderPlan(){
     let div = '';
     for(let i=1;i<cols;i++) div += `<span class="tdiv" style="left:${px(i*UNIT)}px;top:0;bottom:0;border-left:1px dashed currentColor"></span>`;
     for(let j=1;j<rows;j++) div += `<span class="tdiv" style="top:${px(j*UNIT)}px;left:0;right:0;border-top:1px dashed currentColor"></span>`;
-    el.innerHTML = `<span class="tnum">${t.num}</span><span class="seats">${t.cap}</span>${div}`
+    // chiffres proportionnels à la table (pour qu'ils tiennent et restent centrés, même en petit sur mobile)
+    const tw = px(t.w), th = px(t.h), tmin = Math.min(tw, th);
+    const seatFs = clamp(Math.round(tmin*0.5), 8, 20);
+    const numFs  = clamp(Math.round(tmin*0.26), 6, 10);
+    const showNum = tmin >= 26;   // sur les très petites tables, on n'affiche que la capacité (centrée)
+    el.innerHTML = `${showNum?`<span class="tnum" style="font-size:${numFs}px">${t.num}</span>`:''}<span class="seats" style="font-size:${seatFs}px">${t.cap}</span>${div}`
       + (occ?`<div class="who">${occ.name.split(' ')[0]} · ${occ.time}</div>`:'');
     floor.appendChild(el);
     makeInteractive(el, t);
