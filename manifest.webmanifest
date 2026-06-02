@@ -1,0 +1,17 @@
+{
+  "name": "TableLive — Réservations",
+  "short_name": "TableLive",
+  "description": "Les réservations et le plan de salle de votre restaurant, en direct.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#10211a",
+  "theme_color": "#10211a",
+  "orientation": "any",
+  "lang": "fr",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

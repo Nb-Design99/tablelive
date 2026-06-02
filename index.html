@@ -7,6 +7,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex, nofollow" />
 <title>TableLive — Réservations & Plan de salle</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#10211a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="TableLive" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Cormorant+Garamond:ital,wght@0,600;1,600&display=swap" rel="stylesheet" />
@@ -168,6 +176,7 @@
   .res.s-nouvelle { border-left-color: var(--amber); }
   .res.s-confirmee { border-left-color: var(--green); }
   .res.s-installee { border-left-color: var(--blue); }
+  .res.s-attente { border-left-color: var(--gold); }
   .res.s-annulee { border-left-color: var(--red); opacity:.6;}
   .res .row1 { display:flex; align-items:flex-start; gap:10px; }
   .res .name { font-size: 16px; font-weight: 700; }
@@ -180,6 +189,7 @@
   .tag.nouvelle { background: var(--amber-soft); color: var(--amber); }
   .tag.confirmee { background: var(--green-soft); color: var(--green); }
   .tag.installee { background: var(--blue-soft); color: var(--blue); }
+  .tag.attente { background:#f3ecdb; color:#9a7d2e; }
   .tag.annulee { background: var(--red-soft); color: var(--red); }
   .res .meta { display:flex; flex-wrap:wrap; gap:14px; margin:12px 0; color:var(--ink); font-size:14px;}
   .res .meta span { display:flex; align-items:center; gap:6px;}
@@ -402,6 +412,16 @@
   }
   #demoBanner a:hover { background: #1a6845; }
 
+  /* ================= IMPRESSION du plan ================= */
+  @media print {
+    body { background:#fff; overflow:visible; }
+    .side, .topbar, .plan-top, .plan-side, .plan-services, .plan-rooms, .date-bar, #toasts, #demoBanner, #authGate, #stateMsg, .tbl-menu, .add-tile, .hint { display:none !important; }
+    .app { display:block; height:auto; }
+    .main, .content, #view-plan, #planView, .plan-wrap { display:block !important; overflow:visible !important; }
+    .floor-scroll { box-shadow:none; border:none; padding:0; place-content:start; }
+    .tbl .who { color:#000; background:#fff; }
+  }
+
   /* ================= MOBILE (téléphone) ================= */
   @media (max-width: 760px){
     #demoBanner { bottom: 76px; width: calc(100% - 22px); justify-content: space-between; gap: 8px; font-size: 12.5px; padding-left: 14px; }
@@ -484,6 +504,7 @@
             <button data-f="soir" class="active">Ce jour</button>
             <button data-f="all">Toutes</button>
             <button data-f="nouvelle">Nouvelles</button>
+            <button data-f="attente">🕓 Liste d'attente</button>
           </div>
           <input id="resSearch" class="res-search" type="search" placeholder="🔍 Rechercher un nom…" />
         </div>
@@ -501,6 +522,7 @@
             <span class="hint-txt service-only">Glissez un client (à droite) sur une table pour l'installer · glissez une table pour la déplacer.</span>
             <span class="hint-txt edit-only">Glissez une table de la palette sur le plan · cliquez une table pour la régler.</span>
             <span class="hint-txt" id="planCount" style="margin-left:auto;font-weight:700"></span>
+            <button class="btn sm" id="printPlanBtn" style="margin-left:10px">🖨 Imprimer</button>
           </div>
           <div class="plan-rooms" id="planRooms"></div>
           <div class="date-bar" id="dateBarPlan"></div>
@@ -827,7 +849,7 @@ function applyRealtime(payload){
     const r = rowToResa(payload.new);
     const i = state.resas.findIndex(x=>x.id===r.id);
     if(i>=0) state.resas[i]=r;
-    else { state.resas.push(r); if(payload.new.source==='web') toast('Nouvelle réservation en ligne', `${r.name} · ${r.covers}p · ${r.time}`, '📩'); }
+    else { state.resas.push(r); if(payload.new.source==='web'){ toast('Nouvelle réservation en ligne', `${r.name} · ${r.covers}p · ${r.time}`, '📩'); beep(); } }
   }
   cacheLocal(); rerenderCurrent();
 }
@@ -870,7 +892,7 @@ function hideState(){ const el=document.getElementById('stateMsg'); if(el) el.cl
 // ============== Helpers ==============
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const STATUS = { nouvelle:'Nouvelle', confirmee:'Confirmée', installee:'Installée', annulee:'Annulée' };
+const STATUS = { nouvelle:'Nouvelle', confirmee:'Confirmée', installee:'Installée', attente:'Liste d\'attente', annulee:'Annulée' };
 const SHAPE_FR = { round:'ronde', sq:'carrée', rect:'rectangle' };
 function fmtCovers(n){ return n + ' couvert' + (n>1?'s':''); }
 function fmtDim(t){ const u=Math.max(1,Math.round(t.cap/2)); return u+' carré'+(u>1?'s':'')+' · '+t.cap+' places'; }
@@ -895,6 +917,23 @@ const isoShift = (iso, delta) => { const [y,m,d]=iso.split('-').map(Number); con
 const fmtShort = iso => { const [y,m,d]=iso.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString('fr-CH',{weekday:'short',day:'numeric',month:'short'}); };
 const fmtFull  = iso => { const [y,m,d]=iso.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString('fr-CH',{weekday:'long',day:'numeric',month:'long'}); };
 
+// Petit "ding" quand une réservation arrive (utile en plein service). Aucun fichier requis.
+let _actx = null;
+function beep(){
+  try{
+    _actx = _actx || new (window.AudioContext||window.webkitAudioContext)();
+    const ctx = _actx; if(ctx.state==='suspended') ctx.resume();
+    const t0 = ctx.currentTime;
+    [[880,0],[1175,0.16]].forEach(([f,off])=>{
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.type='sine'; o.frequency.value=f; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001, t0+off);
+      g.gain.exponentialRampToValueAtTime(0.28, t0+off+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+off+0.45);
+      o.start(t0+off); o.stop(t0+off+0.5);
+    });
+  }catch(e){}
+}
 function toast(title, sub, ico='🔔'){
   const el = document.createElement('div');
   el.className = 'toast';
@@ -932,6 +971,7 @@ function visibleResas(){
   let list = [...state.resas];
   if(filter==='soir') list = list.filter(r=>r.date===viewDate);
   else if(filter==='nouvelle') list = list.filter(r=>r.status==='nouvelle');
+  else if(filter==='attente') list = list.filter(r=>r.status==='attente');
   return list.sort((a,b)=> (a.time||'').localeCompare(b.time||''));
 }
 $('#resSearch').addEventListener('input', e=>{ searchQuery = e.target.value.trim().toLowerCase(); renderResas(); });
@@ -991,8 +1031,10 @@ function renderResas(){
   grid.innerHTML = list.map(r=>{
     const t = r.table? tableById(r.table):null;
     let acts = '';
-    if(r.status==='nouvelle') acts += `<button class="btn sm primary" data-act="confirm" data-id="${r.id}">✓ Confirmer</button>`;
+    if(r.status==='nouvelle'||r.status==='attente') acts += `<button class="btn sm primary" data-act="confirm" data-id="${r.id}">✓ Confirmer</button>`;
+    if(r.status==='nouvelle') acts += `<button class="btn sm" data-act="wait" data-id="${r.id}">🕓 Attente</button>`;
     if(r.status==='confirmee') acts += `<button class="btn sm" data-act="seat" data-id="${r.id}">🍴 Installer</button>`;
+    if((r.status==='confirmee'||r.status==='installee') && r.email) acts += `<button class="btn sm" data-act="remind" data-id="${r.id}">📨 Rappel</button>`;
     if(r.status!=='annulee') acts += `<button class="btn sm" data-act="assign" data-id="${r.id}">${t?'Changer table':'Placer'}</button>`;
     if(r.status==='annulee') acts += `<button class="btn sm" data-act="restore" data-id="${r.id}">↺ Réactiver</button>`;
     if(r.status!=='annulee') acts += `<button class="btn sm danger" data-act="cancel" data-id="${r.id}">Annuler</button>`;
@@ -1025,6 +1067,8 @@ function resaAction(act, id){
   else if(act==='seat'){ seatAuto(r); }
   else if(act==='cancel'){ r.status='annulee'; r.table=null; save(); renderResas(); toast('Réservation annulée', r.name, '✖️'); }
   else if(act==='restore'){ r.status='nouvelle'; save(); renderResas(); toast('Réservation réactivée', r.name, '↺'); }
+  else if(act==='wait'){ r.status='attente'; r.table=null; save(); renderResas(); toast('Mis en liste d\'attente', r.name, '🕓'); }
+  else if(act==='remind'){ sendConfirmationEmail(r); }
   else if(act==='assign'){ openAssign(r); }
 }
 
@@ -1112,6 +1156,7 @@ function resaForm(client){
       <div class="field"><label>Téléphone</label><input id="f-phone" placeholder="07X XXX XX XX" /></div>
       <div class="field"><label>E-mail (pour la confirmation)</label><input id="f-email" type="email" placeholder="client@exemple.ch" /></div>
       <div class="field"><label>Remarque (optionnel)</label><textarea id="f-note" rows="2" placeholder="Allergies, occasion, chaise haute…"></textarea></div>
+      ${!client?`<label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-bottom:12px"><input type="checkbox" id="f-wait" style="width:auto" /> 🕓 Mettre en liste d'attente</label>`:''}
       <button class="btn primary" id="f-submit" style="width:100%;justify-content:center;padding:12px">${client?'Envoyer ma réservation':'Ajouter la réservation'}</button>
     </div>`);
   $('#f-covers').querySelectorAll('[data-c]').forEach(b=> b.onclick=()=>{
@@ -1120,16 +1165,18 @@ function resaForm(client){
   });
   $('#f-submit').onclick = ()=>{
     const name = $('#f-name').value.trim() || (client?'Client web':'Sans nom');
+    const wait = !client && $('#f-wait') && $('#f-wait').checked;
     const r = { id:newId(), name, phone:$('#f-phone').value.trim(), email:$('#f-email').value.trim(),
       covers, date:$('#f-date').value||viewDate, time:$('#f-time').value||'19:30',
-      notes:$('#f-note').value.trim(), status:'nouvelle', table:null };
+      notes:$('#f-note').value.trim(), status:wait?'attente':'nouvelle', table:null };
     state.resas.push(r); save(); closeModal();
     if(!$('#view-resa').classList.contains('active')) $$('.nav button')[0].click(); else renderResas();
-    toast(client?'Nouvelle réservation reçue !':'Réservation ajoutée', `${r.name} · ${fmtCovers(r.covers)} · ${r.time}`, client?'📩':'➕');
+    toast(wait?'Ajouté en liste d\'attente':(client?'Nouvelle réservation reçue !':'Réservation ajoutée'), `${r.name} · ${fmtCovers(r.covers)} · ${r.time}`, wait?'🕓':(client?'📩':'➕'));
   };
 }
 $('#newResaBtn').onclick = ()=>resaForm(false);
 $('#simulateBtn').onclick = ()=>resaForm(true);
+$('#printPlanBtn').onclick = ()=>window.print();
 
 // Client sans réservation (walk-in) installé directement sur une table libre
 function walkInForm(t){
@@ -1997,6 +2044,8 @@ if(DEMO){
 } else {
   $('#authGate').classList.add('show');
 }
+// App installable (PWA) : enregistre le service worker
+if('serviceWorker' in navigator){ addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
 </script>
 </body>
 </html>
