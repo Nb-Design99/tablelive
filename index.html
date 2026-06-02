@@ -756,7 +756,7 @@ const APP_SLUG = new URLSearchParams(location.search).get('r') || 'demo';   // ?
 const EMAILJS_PUBLIC = 'nPjCUC5qhVJajEm7j';
 const EMAILJS_SERVICE = 'service_mjk5afq';
 const EMAILJS_TEMPLATE = 'template_hxrbwic';
-let sb = null, RESTO_ID = null, RESTO_NAME = null, syncTimer = null;
+let sb = null, RESTO_ID = null, RESTO_NAME = null, syncTimer = null, configTimer = null;
 if(window.emailjs) emailjs.init({ publicKey: EMAILJS_PUBLIC });
 if(window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY);
 const isUuid = s => typeof s==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s);
@@ -775,12 +775,47 @@ function sendConfirmationEmail(r){
     .catch(err=>{ console.warn('email:', err); toast('Email non envoyé', 'Vérifiez la config EmailJS', '⚠️'); });
 }
 
-function save(){ cacheLocal(); syncResas(); }
+function save(){ cacheLocal(); syncResas(); syncConfig(); }
 
 function syncResas(){
   if(!sb || !RESTO_ID || !state.resas.length) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(()=>{ sb.from('reservations').upsert(state.resas.map(resaToRow)).then(({error})=>{ if(error) console.warn('sync resas:', error.message); }); }, 400);
+}
+
+// ===== Sauvegarde cloud du PLAN (rooms/tables/services/équipe…) sur restaurants.config =====
+// Le plan est ainsi conservé en base (et retrouvé sur n'importe quel appareil), pas seulement en local.
+function configFromState(){
+  return {
+    resto: state.resto, services: state.services, tableSizes: state.tableSizes,
+    rooms: state.rooms, currentRoom: state.currentRoom,
+    staff: state.staff, shifts: state.shifts, shiftHours: state.shiftHours,
+    nextStaff: state.nextStaff, nextTable: state.nextTable
+  };
+}
+function applyCloudConfig(cfg){
+  try {
+    if(cfg.resto) state.resto = cfg.resto;
+    if(cfg.services) state.services = cfg.services;
+    if(cfg.tableSizes) state.tableSizes = cfg.tableSizes;
+    if(cfg.rooms) state.rooms = cfg.rooms;
+    if(typeof cfg.currentRoom==='number') state.currentRoom = cfg.currentRoom;
+    if(cfg.staff) state.staff = cfg.staff;
+    if(cfg.shifts) state.shifts = cfg.shifts;
+    if(cfg.shiftHours) state.shiftHours = cfg.shiftHours;
+    if(typeof cfg.nextStaff==='number') state.nextStaff = cfg.nextStaff;
+    if(typeof cfg.nextTable==='number') state.nextTable = cfg.nextTable;
+    tableDims = state.tableSizes;
+    cacheLocal();
+  } catch(e){ console.warn('applyCloudConfig:', e); }
+}
+function syncConfig(){
+  if(DEMO || !sb || !RESTO_ID) return;   // jamais en démo ; uniquement un resto connecté
+  clearTimeout(configTimer);
+  configTimer = setTimeout(()=>{
+    sb.from('restaurants').update({ config: configFromState() }).eq('id', RESTO_ID)
+      .then(({error})=>{ if(error) console.warn('sync config:', error.message); });
+  }, 700);
 }
 function rerenderCurrent(){
   if($('#view-resa').classList.contains('active')) renderResas();
@@ -802,13 +837,15 @@ async function bootstrap(){
   try {
     const { data:{ user } } = await sb.auth.getUser();
     if(!user){ $('#authGate').classList.add('show'); return; }
-    let { data: rooms } = await sb.from('restaurants').select('id,name,active,slug').eq('owner_id', user.id);
+    let { data: rooms } = await sb.from('restaurants').select('id,name,active,slug,config').eq('owner_id', user.id);
     rooms = rooms || [];
     const rest = rooms.find(r=>r.slug===APP_SLUG) || rooms[0] || null;
     if(!rest){ showState('Aucun restaurant associé', "Ce compte n'est relié à aucun restaurant. Contactez NB-Design pour activer votre accès."); return; }
     if(rest.active === false){ showState('Compte suspendu', 'Votre accès est temporairement suspendu. Contactez NB-Design pour le réactiver.'); return; }
     hideState();
     RESTO_ID = rest.id; RESTO_NAME = rest.name;
+    // Plan sauvegardé dans le cloud → on le recharge (sinon on garde le plan local/par défaut, qui sera sauvegardé à la 1re modif)
+    if(rest.config && rest.config.rooms && rest.config.rooms.length){ applyCloudConfig(rest.config); }
     const { data: rows, error: e2 } = await sb.from('reservations').select('*').eq('restaurant_id', RESTO_ID).order('created_at', { ascending:true });
     if(e2){ console.warn('chargement réservations:', e2.message); return; }
     state.resas = (rows||[]).map(rowToResa);
