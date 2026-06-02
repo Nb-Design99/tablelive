@@ -654,6 +654,7 @@
     <div class="field" id="authCodeField" style="display:none"><label>Code d'accès</label><input id="authCode" placeholder="Fourni par NB-Design" /></div>
     <button class="btn primary" id="authSubmit" style="width:100%;justify-content:center;padding:12px">Se connecter</button>
     <div class="auth-toggle"><span id="authToggleTxt">Pas encore de compte ?</span> <a id="authToggle">Créer un compte</a></div>
+    <div class="auth-toggle" id="authResendWrap" style="display:none">Pas reçu l'e-mail ? <a id="authResend">Renvoyer l'e-mail de confirmation</a></div>
   </div>
 </div>
 
@@ -861,7 +862,20 @@ async function bootstrap(){
     if(!user){ $('#authGate').classList.add('show'); return; }
     let { data: rooms } = await sb.from('restaurants').select('id,name,active,slug,config').eq('owner_id', user.id);
     rooms = rooms || [];
-    const rest = rooms.find(r=>r.slug===APP_SLUG) || rooms[0] || null;
+    let rest = rooms.find(r=>r.slug===APP_SLUG) || rooms[0] || null;
+    if(!rest){
+      // 1er login (ex. après confirmation e-mail) : relier le resto via le code mémorisé à l'inscription
+      let pending=null; try{ pending=localStorage.getItem('tl_pending_code'); }catch(e){}
+      if(pending){
+        const claim = await sb.rpc('claim_restaurant', { p_code: pending });
+        try{ localStorage.removeItem('tl_pending_code'); }catch(e){}
+        if(!claim.error){
+          const r2 = await sb.from('restaurants').select('id,name,active,slug,config').eq('owner_id', user.id);
+          rooms = r2.data || [];
+          rest = rooms.find(r=>r.slug===APP_SLUG) || rooms[0] || null;
+        }
+      }
+    }
     if(!rest){ showState('Aucun restaurant associé', "Ce compte n'est relié à aucun restaurant. Contactez NB-Design pour activer votre accès."); return; }
     if(rest.active === false){ showState('Compte suspendu', 'Votre accès est temporairement suspendu. Contactez NB-Design pour le réactiver.'); return; }
     hideState();
@@ -2021,12 +2035,26 @@ $('#authSubmit').onclick = async ()=>{
       if(!valid){ authMsg("Code d'accès invalide ou déjà utilisé."); return; }
       const res = await sb.auth.signUp({ email, password });
       if(res.error){ authMsg(res.error.message); return; }
-      if(!res.data.session){ authMsg('Compte créé ! Confirmez votre e-mail, puis connectez-vous.', true); authMode='login'; return; }
+      try{ localStorage.setItem('tl_pending_code', code); }catch(e){}   // pour relier le resto après confirmation
+      if(!res.data.session){
+        authMsg('Compte créé ! Confirmez votre e-mail (pensez à vérifier vos spams), puis connectez-vous.', true);
+        authMode='login'; $('#authResendWrap').style.display='block';
+        return;
+      }
       const claim = await sb.rpc('claim_restaurant', { p_code: code });
       if(claim.error){ authMsg('Compte créé, mais : '+claim.error.message+'. Contactez NB-Design.'); return; }
+      try{ localStorage.removeItem('tl_pending_code'); }catch(e){}
       bootstrap();   // resto désormais relié → on charge
     }
   } finally { btn.disabled=false; btn.textContent=orig; }
+};
+$('#authResend').onclick = async ()=>{
+  if(!sb) return;
+  const email=$('#authEmail').value.trim();
+  if(!email){ authMsg('Entrez votre e-mail ci-dessus, puis cliquez Renvoyer.'); return; }
+  const { error } = await sb.auth.resend({ type:'signup', email });
+  if(error) authMsg(error.message);
+  else authMsg('E-mail de confirmation renvoyé à '+email+'. Vérifiez aussi vos spams.', true);
 };
 $('#logoutBtn').onclick = async ()=>{ if(sb){ await sb.auth.signOut(); location.reload(); } };
 $('#authPass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#authSubmit').click(); });
