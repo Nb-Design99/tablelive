@@ -1022,14 +1022,43 @@ function resaAction(act, id){
   const r = state.resas.find(x=>x.id===id);
   if(!r) return;
   if(act==='confirm'){ r.status='confirmee'; save(); renderResas(); toast('Réservation confirmée', `${r.name} · ${r.time}`, '✅'); sendConfirmationEmail(r); }
-  else if(act==='seat'){ r.status='installee'; save(); renderResas(); toast('Clients installés', r.name, '🍴'); }
+  else if(act==='seat'){ seatAuto(r); }
   else if(act==='cancel'){ r.status='annulee'; r.table=null; save(); renderResas(); toast('Réservation annulée', r.name, '✖️'); }
   else if(act==='restore'){ r.status='nouvelle'; save(); renderResas(); toast('Réservation réactivée', r.name, '↺'); }
   else if(act==='assign'){ openAssign(r); }
 }
 
+// ============== Installer = placement automatique sur la table la plus juste ==============
+// Place le client sur une table LIBRE de la taille requise (la plus petite qui convient).
+// S'il n'y a plus de table de cette taille, on NE met PAS le client sur une plus grande
+// automatiquement : on affiche un message et on propose le choix manuel.
+function seatAuto(r){
+  if(r.table && tableById(r.table)){   // déjà à une table → on l'installe simplement
+    r.status='installee'; save(); renderResas();
+    toast('Client installé', `${r.name} → Table ${tableById(r.table).num}`, '🍴');
+    return;
+  }
+  const tour = tourOf(r);
+  const isFree = t => { const o = resaOnTable(t.id, tour, r.date); return !o || o.id===r.id; };
+  const fittingCaps = [...new Set(room().tables.map(t=>t.cap))].filter(c=> c>=r.covers).sort((a,b)=>a-b);
+  if(!fittingCaps.length){ toast('Groupe trop grand', `Aucune table ne peut accueillir ${fmtCovers(r.covers)}`, '⚠️'); return; }
+  const idealCap = fittingCaps[0];
+  const idealFree = room().tables.filter(t=> t.cap===idealCap && isFree(t)).sort((a,b)=>a.num-b.num);
+  if(idealFree.length){
+    const t = idealFree[0];
+    r.table = t.id; r.status='installee'; save(); renderResas();
+    toast('Client installé', `${r.name} → Table ${t.num} · ${t.cap} pl.`, '🍴');
+    return;
+  }
+  // plus de table de la taille requise : on informe, et on ouvre le choix manuel si d'autres sont libres
+  const freeCaps = [...new Set(room().tables.filter(t=> t.cap>=r.covers && isFree(t)).map(t=>t.cap))].sort((a,b)=>a-b);
+  const dispo = freeCaps.length ? `Il reste des tables de ${freeCaps.join(', ')} pl.` : `Aucune autre table libre pour ce service.`;
+  toast(`Plus de table de ${idealCap} pl. disponible`, dispo, '⚠️');
+  if(freeCaps.length) openAssign(r, true);
+}
+
 // ============== Assign table modal ==============
-function openAssign(r){
+function openAssign(r, seatMode){
   const opts = room().tables.slice().sort((a,b)=>a.num-b.num).map(t=>{
     const occ = resaOnTable(t.id, tourOf(r), r.date);
     const taken = occ && occ.id!==r.id;
@@ -1059,7 +1088,7 @@ function openAssign(r){
     const tid = b.dataset.t;
     if(tid==='__none'){ r.table=null; save(); closeModal(); renderResas(); toast('Table retirée', r.name, '🪑'); return; }
     const t = tableById(tid);
-    const apply = ()=>{ r.table=tid; if(r.status==='nouvelle') r.status='confirmee'; save(); closeModal(); renderResas(); toast('Table assignée', `${r.name} → Table ${t.num}`, '🪑'); };
+    const apply = ()=>{ r.table=tid; r.status = seatMode ? 'installee' : (r.status==='nouvelle'?'confirmee':r.status); save(); closeModal(); renderResas(); toast(seatMode?'Client installé':'Table assignée', `${r.name} → Table ${t.num}`, seatMode?'🍴':'🪑'); };
     if(r.covers > t.cap){ confirmOverCapacity(r, t, apply); return; }
     apply();
   });
