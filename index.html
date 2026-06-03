@@ -649,11 +649,12 @@
     <div class="auth-logo">TableLive</div>
     <h2 id="authTitle">Connexion restaurant</h2>
     <div class="auth-err" id="authErr"></div>
-    <div class="field"><label>E-mail</label><input id="authEmail" type="email" placeholder="vous@restaurant.ch" autocomplete="username" /></div>
+    <div class="field" id="authEmailField"><label>E-mail</label><input id="authEmail" type="email" placeholder="vous@restaurant.ch" autocomplete="username" /></div>
     <div class="field"><label>Mot de passe</label><input id="authPass" type="password" placeholder="••••••••" autocomplete="current-password" /></div>
     <div class="field" id="authCodeField" style="display:none"><label>Code d'accès</label><input id="authCode" placeholder="Fourni par NB-Design" /></div>
     <button class="btn primary" id="authSubmit" style="width:100%;justify-content:center;padding:12px">Se connecter</button>
     <div class="auth-toggle"><span id="authToggleTxt">Pas encore de compte ?</span> <a id="authToggle">Créer un compte</a></div>
+    <div class="auth-toggle" id="authForgotWrap"><a id="authForgot">Mot de passe oublié ?</a></div>
     <div class="auth-toggle" id="authResendWrap" style="display:none">Pas reçu l'e-mail ? <a id="authResend">Renvoyer l'e-mail de confirmation</a></div>
   </div>
 </div>
@@ -2007,6 +2008,7 @@ renderResas();
 
 // ---------- Authentification (Phase 2) ----------
 let authMode = 'login';
+let recoveryMode = false;
 function authMsg(m, ok){ const e=$('#authErr'); e.textContent=m; e.className='auth-err'+(ok?' ok':''); e.style.display='block'; }
 $('#authToggle').onclick = ()=>{
   authMode = authMode==='login' ? 'signup' : 'login';
@@ -2015,10 +2017,36 @@ $('#authToggle').onclick = ()=>{
   $('#authToggleTxt').textContent = authMode==='login' ? 'Pas encore de compte ?' : 'Déjà un compte ?';
   $('#authToggle').textContent = authMode==='login' ? 'Créer un compte' : 'Se connecter';
   $('#authCodeField').style.display = authMode==='signup' ? 'block' : 'none';
+  $('#authForgotWrap').style.display = authMode==='signup' ? 'none' : 'block';
   $('#authErr').style.display='none';
 };
+// L'utilisateur arrive via le lien « mot de passe oublié » → on lui fait choisir un nouveau mot de passe
+function enterRecoveryMode(){
+  recoveryMode = true;
+  $('#authGate').classList.add('show');
+  $('#authTitle').textContent = 'Choisir un nouveau mot de passe';
+  $('#authEmailField').style.display = 'none';
+  $('#authCodeField').style.display = 'none';
+  document.querySelector('#authGate .auth-toggle').style.display = 'none';
+  $('#authForgotWrap').style.display = 'none';
+  $('#authResendWrap').style.display = 'none';
+  $('#authPass').value = ''; $('#authPass').placeholder = 'Nouveau mot de passe';
+  $('#authPass').setAttribute('autocomplete','new-password');
+  $('#authSubmit').textContent = 'Enregistrer le mot de passe';
+}
 $('#authSubmit').onclick = async ()=>{
   if(!sb) return;
+  if(recoveryMode){
+    const pass = $('#authPass').value;
+    if(pass.length < 6){ authMsg('Mot de passe trop court (6 caractères minimum).'); return; }
+    const btn=$('#authSubmit'); btn.disabled=true; const o=btn.textContent; btn.textContent='…';
+    const { error } = await sb.auth.updateUser({ password: pass });
+    btn.disabled=false; btn.textContent=o;
+    if(error){ authMsg(error.message); return; }
+    authMsg('Mot de passe modifié ✅ Connexion en cours…', true);
+    recoveryMode=false; setTimeout(()=>location.reload(), 1200);
+    return;
+  }
   const email = $('#authEmail').value.trim(), password = $('#authPass').value;
   if(!email || !password){ authMsg('Entrez votre e-mail et votre mot de passe.'); return; }
   $('#authErr').style.display='none';
@@ -2056,6 +2084,14 @@ $('#authResend').onclick = async ()=>{
   if(error) authMsg(error.message);
   else authMsg('E-mail de confirmation renvoyé à '+email+'. Vérifiez aussi vos spams.', true);
 };
+$('#authForgot').onclick = async ()=>{
+  if(!sb) return;
+  const email=$('#authEmail').value.trim();
+  if(!email){ authMsg('Entrez d\'abord votre e-mail ci-dessus, puis cliquez « Mot de passe oublié ».'); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin });
+  if(error) authMsg(error.message);
+  else authMsg('E-mail de réinitialisation envoyé à '+email+'. Cliquez le lien reçu pour choisir un nouveau mot de passe (pensez aux spams).', true);
+};
 $('#logoutBtn').onclick = async ()=>{ if(sb){ await sb.auth.signOut(); location.reload(); } };
 $('#authPass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#authSubmit').click(); });
 
@@ -2066,6 +2102,8 @@ if(DEMO){
   setTimeout(()=> toast('Bienvenue dans la démo', 'Réservations, plan de salle, équipe — explorez tout.', '🎬'), 600);
 } else if(sb){
   sb.auth.onAuthStateChange((event, session)=>{
+    if(event==='PASSWORD_RECOVERY'){ enterRecoveryMode(); return; }
+    if(recoveryMode) return;   // pendant le choix du nouveau mot de passe, on ne charge pas le tableau de bord
     if(session){ $('#authGate').classList.remove('show'); setTimeout(()=>bootstrap(), 0); }
     else { $('#authGate').classList.add('show'); channelSub=null; }
   });
