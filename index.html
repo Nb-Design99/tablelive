@@ -1790,7 +1790,11 @@ function renderSelInfo(){
 
   box.querySelectorAll('[data-a]').forEach(b=> b.onclick=()=>{
     const a=b.dataset.a;
-    if(a==='cap+'){ t.cap+=2; applySize(t); }
+    if(a==='cap+'){
+      const units = room().tables.reduce((s,x)=>s + x.cap/2, 0);   // 1 carré = 1 table de 2
+      if(units + 1 > room().maxTables){ toast('Maximum atteint', `${room().maxTables} tables de 2 prévues sur ce plan`, '⛔'); return; }
+      t.cap+=2; applySize(t);
+    }
     else if(a==='cap-'){ if(t.cap>2){ t.cap-=2; applySize(t); } }
     else if(a==='rotate'){ t.orient=(t.orient==='v'?'h':'v'); applySize(t); }
     else if(a==='del'){
