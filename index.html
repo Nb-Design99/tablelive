@@ -633,6 +633,12 @@
             <button class="btn sm" id="svcAdd" style="margin-top:8px">＋ Ajouter un service</button>
           </div>
           <div class="panel">
+            <h3>Membres de l'équipe</h3>
+            <p class="sel-info" style="margin-bottom:8px">Le personnel affiché dans le planning de la semaine (onglet Équipe).</p>
+            <div id="staffListResto"></div>
+            <button class="btn sm" id="staffAddResto" style="margin-top:6px">＋ Ajouter un membre</button>
+          </div>
+          <div class="panel">
             <h3>Horaires du planning (équipe)</h3>
             <p class="sel-info" style="margin-bottom:10px">Heures des tranches midi / soir / journée utilisées dans le planning de l'équipe.</p>
             <div id="shiftHoursEditorResto"></div>
@@ -1862,17 +1868,8 @@ function renderEquipe(){
   $('#swNext').onclick = ()=>{ staffWeekStart=isoShift(staffWeekStart,7); renderEquipe(); };
   $('#swThis').onclick = ()=>{ staffWeekStart=todayISO(); renderEquipe(); };
 
-  // membres (rôle = menu déroulant)
-  const sl = $('#staffList');
-  sl.innerHTML = state.staff.length ? state.staff.map(p=>`
-    <div class="staff-row-edit">
-      <input class="st-name" data-id="${p.id}" value="${p.name||''}" placeholder="Nom"/>
-      <select class="st-role" data-id="${p.id}">${ROLES.map(r=>`<option ${roleOf(p)===r?'selected':''}>${r}</option>`).join('')}</select>
-      <button class="btn sm danger st-del" data-id="${p.id}">🗑</button>
-    </div>`).join('') : '<div class="place-empty">Aucun membre. Ajoutez-en un ci-dessous.</div>';
-  sl.querySelectorAll('.st-name').forEach(inp=> inp.oninput=e=>{ const p=state.staff.find(x=>x.id===e.target.dataset.id); if(p){ p.name=e.target.value; save(); refreshStaffGrid(); } });
-  sl.querySelectorAll('.st-role').forEach(sel=> sel.onchange=e=>{ const p=state.staff.find(x=>x.id===e.target.dataset.id); if(p){ p.role=e.target.value; save(); refreshStaffGrid(); } });
-  sl.querySelectorAll('.st-del').forEach(b=> b.onclick=()=>{ state.staff=state.staff.filter(x=>x.id!==b.dataset.id); save(); renderEquipe(); });
+  // membres (éditeur partagé Équipe + Mon restaurant)
+  renderStaffListInto('#staffList');
 
   // horaires des tranches (éditeur partagé Équipe + Mon restaurant)
   renderShiftHoursInto('#shiftHoursEditor');
@@ -1880,6 +1877,20 @@ function renderEquipe(){
   renderLegend();
   refreshStaffGrid();
 }
+// Éditeur des membres de l'équipe — réutilisable (Équipe + Mon restaurant)
+function renderStaffListInto(sel){
+  const sl = $(sel); if(!sl) return;
+  sl.innerHTML = state.staff.length ? state.staff.map(p=>`
+    <div class="staff-row-edit">
+      <input class="st-name" data-id="${p.id}" value="${p.name||''}" placeholder="Nom"/>
+      <select class="st-role" data-id="${p.id}">${ROLES.map(r=>`<option ${roleOf(p)===r?'selected':''}>${r}</option>`).join('')}</select>
+      <button class="btn sm danger st-del" data-id="${p.id}">🗑</button>
+    </div>`).join('') : '<div class="place-empty">Aucun membre. Ajoutez-en un ci-dessous.</div>';
+  sl.querySelectorAll('.st-name').forEach(inp=> inp.oninput=e=>{ const p=state.staff.find(x=>x.id===e.target.dataset.id); if(p){ p.name=e.target.value; save(); refreshStaffGrid(); } });
+  sl.querySelectorAll('.st-role').forEach(s=> s.onchange=e=>{ const p=state.staff.find(x=>x.id===e.target.dataset.id); if(p){ p.role=e.target.value; save(); refreshStaffGrid(); } });
+  sl.querySelectorAll('.st-del').forEach(b=> b.onclick=()=>{ state.staff=state.staff.filter(x=>x.id!==b.dataset.id); save(); renderStaffListInto('#staffList'); renderStaffListInto('#staffListResto'); refreshStaffGrid(); });
+}
+function addStaffMember(){ state.staff.push({ id:'e'+(state.nextStaff++), name:'', role:'Service' }); save(); renderStaffListInto('#staffList'); renderStaffListInto('#staffListResto'); refreshStaffGrid(); }
 // Éditeur des horaires midi/soir/journée — réutilisable dans plusieurs onglets
 function renderShiftHoursInto(sel){
   const he = $(sel); if(!he) return;
@@ -1927,7 +1938,8 @@ function refreshStaffGrid(){
     });
   }
 }
-$('#staffAdd').onclick = ()=>{ state.staff.push({ id:'e'+(state.nextStaff++), name:'', role:'Service' }); save(); renderEquipe(); };
+$('#staffAdd').onclick = addStaffMember;
+if($('#staffAddResto')) $('#staffAddResto').onclick = addStaffMember;
 
 // ============== Mon restaurant ==============
 function renderResto(){
@@ -1937,6 +1949,7 @@ function renderResto(){
   renderPlanCount();
   renderServices();
   renderTableSizes();
+  renderStaffListInto('#staffListResto');
   renderShiftHoursInto('#shiftHoursEditorResto');
   renderRooms();
   const lbl=$('#floorRoomLbl'); if(lbl) lbl.textContent = '· '+room().name;
