@@ -649,7 +649,7 @@
     <div class="auth-logo">TableLive</div>
     <h2 id="authTitle">Connexion restaurant</h2>
     <div class="auth-err" id="authErr"></div>
-    <div class="field" id="authEmailField"><label>E-mail</label><input id="authEmail" type="email" placeholder="vous@restaurant.ch" autocomplete="username" /></div>
+    <div class="field" id="authEmailField"><label>Identifiant</label><input id="authEmail" type="text" placeholder="ex. letilleul" autocomplete="username" autocapitalize="none" spellcheck="false" /></div>
     <div class="field"><label>Mot de passe</label><input id="authPass" type="password" placeholder="••••••••" autocomplete="current-password" /></div>
     <div class="field" id="authCodeField" style="display:none"><label>Code d'accès</label><input id="authCode" placeholder="Fourni par NB-Design" /></div>
     <button class="btn primary" id="authSubmit" style="width:100%;justify-content:center;padding:12px">Se connecter</button>
@@ -776,6 +776,9 @@ function cacheLocal(){ if(DEMO) return; try { localStorage.setItem(LS_KEY, JSON.
 const SB_URL = 'https://fgjdpxmffreggjqnxxwm.supabase.co';
 const SB_KEY = 'sb_publishable_shN_fx2l80aNF2H5r6qSNw_-PWGPvjr';
 const APP_SLUG = new URLSearchParams(location.search).get('r') || 'demo';   // ?r=slug → resto affiché
+// Connexion par IDENTIFIANT : le resto tape « letilleul », on complète en e-mail interne pour Supabase.
+const AUTH_DOMAIN = 'tablelive.ch';
+const idToEmail = v => { v=(v||'').trim().toLowerCase(); return v.includes('@') ? v : (v ? v+'@'+AUTH_DOMAIN : ''); };
 // EmailJS (email de confirmation au client)
 const EMAILJS_PUBLIC = 'nPjCUC5qhVJajEm7j';
 const EMAILJS_SERVICE = 'service_mjk5afq';
@@ -2047,8 +2050,9 @@ $('#authSubmit').onclick = async ()=>{
     recoveryMode=false; setTimeout(()=>location.reload(), 1200);
     return;
   }
-  const email = $('#authEmail').value.trim(), password = $('#authPass').value;
-  if(!email || !password){ authMsg('Entrez votre e-mail et votre mot de passe.'); return; }
+  const idRaw = $('#authEmail').value.trim(), password = $('#authPass').value;
+  if(!idRaw || !password){ authMsg('Entrez votre identifiant et votre mot de passe.'); return; }
+  const email = idToEmail(idRaw);
   $('#authErr').style.display='none';
   const btn=$('#authSubmit'), orig=btn.textContent; btn.disabled=true; btn.textContent='…';
   try {
@@ -2078,16 +2082,17 @@ $('#authSubmit').onclick = async ()=>{
 };
 $('#authResend').onclick = async ()=>{
   if(!sb) return;
-  const email=$('#authEmail').value.trim();
-  if(!email){ authMsg('Entrez votre e-mail ci-dessus, puis cliquez Renvoyer.'); return; }
-  const { error } = await sb.auth.resend({ type:'signup', email });
+  const idRaw=$('#authEmail').value.trim();
+  if(!idRaw){ authMsg('Entrez votre identifiant ci-dessus, puis cliquez Renvoyer.'); return; }
+  const { error } = await sb.auth.resend({ type:'signup', email: idToEmail(idRaw) });
   if(error) authMsg(error.message);
   else authMsg('E-mail de confirmation renvoyé à '+email+'. Vérifiez aussi vos spams.', true);
 };
 $('#authForgot').onclick = async ()=>{
   if(!sb) return;
-  const email=$('#authEmail').value.trim();
-  if(!email){ authMsg('Entrez d\'abord votre e-mail ci-dessus, puis cliquez « Mot de passe oublié ».'); return; }
+  const idRaw=$('#authEmail').value.trim();
+  if(!idRaw){ authMsg('Entrez d\'abord votre identifiant ci-dessus, puis cliquez « Mot de passe oublié ».'); return; }
+  const email = idToEmail(idRaw);
   const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin });
   if(error) authMsg(error.message);
   else authMsg('E-mail de réinitialisation envoyé à '+email+'. Cliquez le lien reçu pour choisir un nouveau mot de passe (pensez aux spams).', true);
