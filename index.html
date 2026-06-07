@@ -638,6 +638,10 @@
             <div id="sizeList"></div>
           </div>
           </div><!-- /#restoSettings -->
+          <div class="panel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <div><b id="acctName" style="font-size:14px"></b><div class="sel-info" id="acctId" style="margin:0;font-size:12px"></div></div>
+            <button class="btn danger" id="logoutBtn2">Se déconnecter</button>
+          </div>
         </div>
       </section>
     </div>
@@ -884,6 +888,8 @@ async function bootstrap(){
     if(rest.active === false){ showState('Compte suspendu', 'Votre accès est temporairement suspendu. Contactez NB-Design pour le réactiver.'); return; }
     hideState();
     RESTO_ID = rest.id; RESTO_NAME = rest.name;
+    if($('#acctName')) $('#acctName').textContent = RESTO_NAME || '';
+    if($('#acctId')) $('#acctId').textContent = (user.email ? 'Identifiant : '+user.email.split('@')[0] : '');
     // Plan sauvegardé dans le cloud → on le recharge (sinon on garde le plan local/par défaut, qui sera sauvegardé à la 1re modif)
     if(rest.config && rest.config.rooms && rest.config.rooms.length){ applyCloudConfig(rest.config); }
     const { data: rows, error: e2 } = await sb.from('reservations').select('*').eq('restaurant_id', RESTO_ID).order('created_at', { ascending:true });
@@ -2097,13 +2103,16 @@ $('#authForgot').onclick = async ()=>{
   if(error) authMsg(error.message);
   else authMsg('E-mail de réinitialisation envoyé à '+email+'. Cliquez le lien reçu pour choisir un nouveau mot de passe (pensez aux spams).', true);
 };
-$('#logoutBtn').onclick = async ()=>{ if(sb){ await sb.auth.signOut(); location.reload(); } };
+async function doLogout(){ if(sb){ try{ await sb.auth.signOut(); }catch(e){} } location.reload(); }
+$('#logoutBtn').onclick = doLogout;
+if($('#logoutBtn2')) $('#logoutBtn2').onclick = doLogout;
 $('#authPass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#authSubmit').click(); });
 
 if(DEMO){
   // Démo publique : pas de connexion, données d'exemple en mémoire, rien n'est enregistré.
   $('#demoBanner').classList.add('show');
   const lo = $('#logoutBtn'); if(lo) lo.style.display='none';
+  const l2 = $('#logoutBtn2'); if(l2 && l2.closest('.panel')) l2.closest('.panel').style.display='none';
   setTimeout(()=> toast('Bienvenue dans la démo', 'Réservations, plan de salle, équipe — explorez tout.', '🎬'), 600);
 } else if(sb){
   sb.auth.onAuthStateChange((event, session)=>{
