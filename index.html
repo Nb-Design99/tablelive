@@ -633,6 +633,11 @@
             <button class="btn sm" id="svcAdd" style="margin-top:8px">＋ Ajouter un service</button>
           </div>
           <div class="panel">
+            <h3>Horaires du planning (équipe)</h3>
+            <p class="sel-info" style="margin-bottom:10px">Heures des tranches midi / soir / journée utilisées dans le planning de l'équipe.</p>
+            <div id="shiftHoursEditorResto"></div>
+          </div>
+          <div class="panel">
             <h3>Taille des tables</h3>
             <p class="sel-info" style="margin-bottom:8px">Réglez les dimensions de chaque type de table (longueur et profondeur, par 10 cm). Les tables existantes sont mises à jour.</p>
             <div id="sizeList"></div>
@@ -1869,8 +1874,15 @@ function renderEquipe(){
   sl.querySelectorAll('.st-role').forEach(sel=> sel.onchange=e=>{ const p=state.staff.find(x=>x.id===e.target.dataset.id); if(p){ p.role=e.target.value; save(); refreshStaffGrid(); } });
   sl.querySelectorAll('.st-del').forEach(b=> b.onclick=()=>{ state.staff=state.staff.filter(x=>x.id!==b.dataset.id); save(); renderEquipe(); });
 
-  // horaires des tranches
-  const he = $('#shiftHoursEditor');
+  // horaires des tranches (éditeur partagé Équipe + Mon restaurant)
+  renderShiftHoursInto('#shiftHoursEditor');
+
+  renderLegend();
+  refreshStaffGrid();
+}
+// Éditeur des horaires midi/soir/journée — réutilisable dans plusieurs onglets
+function renderShiftHoursInto(sel){
+  const he = $(sel); if(!he) return;
   he.innerHTML = ['midi','soir','jour'].map(k=>`
     <div class="shift-hour-row">
       <span class="lg sh-${k}">${SHIFT_LABEL[k]}</span>
@@ -1880,9 +1892,6 @@ function renderEquipe(){
     </div>`).join('');
   he.querySelectorAll('.sh-start').forEach(inp=> inp.oninput=e=>{ state.shiftHours[e.target.dataset.k].start=e.target.value; save(); renderLegend(); });
   he.querySelectorAll('.sh-end').forEach(inp=> inp.oninput=e=>{ state.shiftHours[e.target.dataset.k].end=e.target.value; save(); renderLegend(); });
-
-  renderLegend();
-  refreshStaffGrid();
 }
 const fmtH = t => (t||'').replace(':','h');
 function renderLegend(){
@@ -1928,6 +1937,7 @@ function renderResto(){
   renderPlanCount();
   renderServices();
   renderTableSizes();
+  renderShiftHoursInto('#shiftHoursEditorResto');
   renderRooms();
   const lbl=$('#floorRoomLbl'); if(lbl) lbl.textContent = '· '+room().name;
   applyRestoLock();
