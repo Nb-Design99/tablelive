@@ -572,23 +572,9 @@
       <!-- VIEW: Équipe -->
       <section class="view" id="view-equipe">
         <div style="max-width:900px; display:flex; flex-direction:column; gap:16px;">
-          <div class="resto-edit-bar">
-            <button class="btn" id="staffEditBtn">✏️ Modifier</button>
-            <span class="hint-txt" id="staffEditHint">Planning verrouillé — cliquez « Modifier » pour le changer.</span>
-          </div>
-          <div id="equipeSettings" class="locked" style="display:flex; flex-direction:column; gap:16px;">
-            <div class="panel">
-              <h3>Membres de l'équipe</h3>
-              <div id="staffList"></div>
-              <button class="btn sm" id="staffAdd" style="margin-top:6px">＋ Ajouter un membre</button>
-            </div>
-            <div class="panel">
-              <h3>Horaires des tranches</h3>
-              <div id="shiftHoursEditor"></div>
-            </div>
-          </div>
           <div class="panel">
             <h3>Planning de la semaine</h3>
+            <p class="sel-info" style="margin:0 0 10px">Cliquez une case pour définir la tranche. Les membres et les horaires se règlent dans « Mon restaurant ».</p>
             <div class="staff-weeknav" id="staffWeekNav"></div>
             <p class="sel-info" id="staffGridHint" style="margin:0 0 10px"></p>
             <div class="staff-grid-wrap"><table class="staff-grid" id="staffGrid"></table></div>
@@ -1848,7 +1834,7 @@ $('#floor').addEventListener('pointerdown', e=>{
 
 // ============== Équipe (planning) ==============
 let staffWeekStart = todayISO();
-let staffEdit = false;
+let staffEdit = true;   // planning toujours éditable (le verrou « Modifier » a été retiré de l'onglet Équipe)
 const SHIFT_LABEL = { soir:'Soir', midi:'Midi', jour:'Journée' };
 const ROLES = ['Service','Cuisine','Bar','Autre'];
 const roleOf = p => ROLES.includes(p.role) ? p.role : 'Autre';
@@ -1859,7 +1845,7 @@ function applyStaffLock(){
   const hint=$('#staffEditHint'); if(hint) hint.textContent = staffEdit ? 'Modifications activées — cliquez « Terminé » quand c\'est fini.' : 'Planning verrouillé — cliquez « Modifier » pour le changer.';
   const gh=$('#staffGridHint'); if(gh) gh.textContent = staffEdit ? 'Cliquez une case : Soir → Midi → Journée → vide.' : 'Cliquez « Modifier » pour éditer le planning.';
 }
-$('#staffEditBtn').onclick = ()=>{ staffEdit=!staffEdit; applyStaffLock(); refreshStaffGrid(); };
+if($('#staffEditBtn')) $('#staffEditBtn').onclick = ()=>{ staffEdit=!staffEdit; applyStaffLock(); refreshStaffGrid(); };
 
 function renderEquipe(){
   applyStaffLock();
@@ -1942,7 +1928,7 @@ function refreshStaffGrid(){
     });
   }
 }
-$('#staffAdd').onclick = addStaffMember;
+if($('#staffAdd')) $('#staffAdd').onclick = addStaffMember;
 if($('#staffAddResto')) $('#staffAddResto').onclick = addStaffMember;
 
 // ============== Mon restaurant ==============
