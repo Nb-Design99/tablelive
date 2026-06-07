@@ -335,6 +335,7 @@
     background:repeating-linear-gradient(45deg,#e8eef3,#e8eef3 7px,#f3f6f9 7px,#f3f6f9 14px); }
   .zone.pillar { background:#2a3531; border:0; border-radius:4px; color:#fff; }
   .zone.selected { outline:3px solid var(--gold); outline-offset:2px; z-index:30; }
+  .zone .zdim { position:absolute; bottom:3px; left:50%; transform:translateX(-50%); font-size:10px; font-weight:700; color:var(--ink); background:var(--card); border:1px solid var(--gold); border-radius:6px; padding:0 6px; white-space:nowrap; pointer-events:none; z-index:31; }
   #planView.mode-edit .zone { cursor:grab; }
   .blocks { display:flex; flex-wrap:wrap; gap:8px; }
   .block-btn { border:1px solid var(--line); background:var(--bg); border-radius:8px; padding:8px 12px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; color:var(--ink); }
@@ -1332,6 +1333,7 @@ function makeZoneInteractive(el, z){
         z.w=snap(clamp(ow+dxm, 0.4, room().floor.w-z.x));
         z.h=snap(clamp(oh+dym, 0.4, room().floor.h-z.y));
         el.style.width=px(z.w)+'px'; el.style.height=px(z.h)+'px';
+        const dim=el.querySelector('.zdim'); if(dim) dim.textContent = z.w.toFixed(1)+' × '+z.h.toFixed(1)+' m';
       } else {
         z.x=clamp(snapGrid(ox+dxm), 0, snap(room().floor.w-z.w));
         z.y=clamp(snapGrid(oy+dym), 0, snap(room().floor.h-z.h));
@@ -1405,7 +1407,7 @@ function renderPlan(){
     el.style.left = px(z.x)+'px'; el.style.top = px(z.y)+'px';
     el.style.width = px(z.w)+'px'; el.style.height = px(z.h)+'px';
     el.dataset.zid = z.id;
-    el.innerHTML = `<span>${z.label||''}</span>` + ((editMode && sel)?`<div class="rh" data-rh></div>`:'');
+    el.innerHTML = `<span>${z.label||''}</span>` + ((editMode && sel)?`<span class="zdim">${z.w.toFixed(1)} × ${z.h.toFixed(1)} m</span><div class="rh" data-rh></div>`:'');
     floor.appendChild(el);
     if(editMode) makeZoneInteractive(el, z);
   });
