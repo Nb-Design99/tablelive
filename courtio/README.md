@@ -46,18 +46,29 @@ Entièrement fonctionnelle côté navigateur (`localStorage`) :
 - Bouton **« Changer de rôle »** pour basculer entre les deux vues.
 - Calcul automatique des commissions (% du devis ou montant fixe).
 
-## 🚀 Étapes pour passer en production
+## ⚙️ Backend (rendre le site fonctionnel)
 
-Ce site est le **front-end / MVP visuel**. Pour en faire un vrai produit :
+Le dossier [`backend/`](backend/) contient tout le nécessaire pour transformer la
+vitrine en vrai produit :
+
+| Fichier | Rôle |
+|---|---|
+| `backend/schema.sql` | Base de données complète (tables, sécurité RLS, calcul auto des commissions) |
+| `backend/functions/` | Fonctions serveur Stripe (abonnement, Connect, versement, webhook) |
+| `backend/SETUP.md` | **Guide d'installation pas-à-pas** (Supabase + Stripe) |
+| `assets/js/config.js` | Vos clés Supabase (vide = mode démo) |
+| `assets/js/api.js` | Couche d'accès aux données (auth, missions, leads, paiements) |
+
+👉 **Suivez [`backend/SETUP.md`](backend/SETUP.md)** pour activer comptes réels et paiements.
+Tant que `config.js` est vide, le site reste en **mode démo** (rien à installer).
+
+## 🚀 Reste à faire pour la production
 
 1. **Domaine** : enregistrer `courtio.ch` (+ `.com`) et vérifier la marque (Swissreg/IPI).
-2. **Backend & base de données** : comptes, missions, leads, statuts (ex. Supabase / Node).
-3. **Authentification** réelle (e-mail + mot de passe, ou magic link).
-4. **Paiements** : intégrer **Stripe** + **Stripe Connect** pour l'abonnement entreprise
-   et le reversement automatique des commissions aux apporteurs.
-5. **Notifications** e-mail (nouveau lead, devis signé, commission versée).
-6. **Juridique** : faire valider CGU / confidentialité, vérifier le statut LBA selon le
-   flux des fonds, exclure les secteurs réglementés (assurance, finance, juridique).
+2. Connecter l'**espace** (`app.js`) aux vraies données via `api.js` (actuellement en démo).
+3. **Notifications** e-mail (nouveau lead, devis signé, commission versée).
+4. **Juridique** : valider CGU / confidentialité, vérifier le statut LBA selon le flux des
+   fonds, exclure les secteurs réglementés (assurance, finance, juridique).
 
 ## 🎨 Marque
 

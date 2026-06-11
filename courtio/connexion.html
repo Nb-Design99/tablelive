@@ -38,6 +38,31 @@
   </div>
 
   <div data-footer></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script>
+    (function () {
+      var api = window.Courtio && window.Courtio.api;
+      if (!api || !api.isReady()) return; // mode démo géré par main.js
+      var form = document.querySelector("form[data-demo]");
+      if (!form) return;
+      form.removeAttribute("data-demo");
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var fd = new FormData(form);
+        var btn = form.querySelector("button[type=submit]");
+        btn.disabled = true; var orig = btn.textContent; btn.textContent = "Connexion…";
+        try {
+          await api.Auth.signIn(fd.get("email"), fd.get("password"));
+          location.href = "espace.html";
+        } catch (err) {
+          window.courtioToast("Identifiants incorrects.");
+          btn.disabled = false; btn.textContent = orig;
+        }
+      });
+    })();
+  </script>
   <script src="assets/js/main.js"></script>
 </body>
 </html>
