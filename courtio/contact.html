@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact — Courtio</title>
+  <meta name="description" content="Contactez l'équipe Courtio." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <div data-header></div>
+
+  <section class="section">
+    <div class="container grid grid-2" style="align-items:start">
+      <div class="reveal">
+        <span class="eyebrow">Contact</span>
+        <h2>Parlons de votre projet</h2>
+        <p class="lead">Une question sur le fonctionnement, un partenariat, une idée ? Écrivez-nous, nous répondons vite.</p>
+        <div style="margin-top:24px">
+          <p><strong style="color:var(--c-ink)">✉️ E-mail</strong><br /><a href="mailto:contact@courtio.ch">contact@courtio.ch</a></p>
+          <p><strong style="color:var(--c-ink)">📍 Basé en</strong><br />Suisse 🇨🇭</p>
+          <p><strong style="color:var(--c-ink)">⏱️ Réponse</strong><br />Sous 24–48 h ouvrées</p>
+        </div>
+      </div>
+      <div class="card reveal">
+        <form data-demo="Message envoyé ! (démo) Nous reviendrons vers vous rapidement.">
+          <div class="form-field"><label>Votre nom</label><input type="text" name="name" required placeholder="Prénom Nom" /></div>
+          <div class="form-field"><label>E-mail</label><input type="email" name="email" required placeholder="vous@exemple.ch" /></div>
+          <div class="form-field"><label>Vous êtes</label><select name="profile"><option>Une entreprise</option><option>Un apporteur</option><option>Autre</option></select></div>
+          <div class="form-field"><label>Message</label><textarea name="message" rows="4" required placeholder="Votre message…"></textarea></div>
+          <button class="btn btn-primary btn-block btn-lg" type="submit">Envoyer le message</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <div data-footer></div>
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

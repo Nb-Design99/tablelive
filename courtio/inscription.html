@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inscription — Courtio</title>
+  <meta name="description" content="Créez votre compte Courtio : entreprise ou apporteur d'affaires." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <div data-header></div>
+
+  <div class="auth-wrap">
+    <div class="container" style="display:grid;place-items:center">
+      <div class="auth-card reveal">
+        <h1>Créer mon compte</h1>
+        <p class="text-muted" style="margin-bottom:24px">Rejoignez Courtio en 2 minutes.</p>
+
+        <form data-demo="Compte créé ! (démo — l'authentification réelle sera branchée plus tard)">
+          <label style="display:block;font-weight:600;font-size:.9rem;color:var(--c-ink);margin-bottom:9px">Je m'inscris en tant que :</label>
+          <div class="role-toggle">
+            <label>
+              <input type="radio" name="role" value="entreprise" checked />
+              <div class="role-box"><strong>🏢 Entreprise</strong><span>Je cherche des clients</span></div>
+            </label>
+            <label>
+              <input type="radio" name="role" value="apporteur" />
+              <div class="role-box"><strong>🤝 Apporteur</strong><span>J'amène des clients</span></div>
+            </label>
+          </div>
+
+          <div class="form-field">
+            <label>Nom (entreprise ou personne)</label>
+            <input type="text" name="name" required placeholder="Ex : Peinture Duval Sàrl" />
+          </div>
+          <div class="form-field">
+            <label>Adresse e-mail</label>
+            <input type="email" name="email" required placeholder="vous@exemple.ch" />
+          </div>
+          <div class="form-field">
+            <label>Mot de passe</label>
+            <input type="password" name="password" required minlength="6" placeholder="Au moins 6 caractères" />
+          </div>
+          <div class="form-field">
+            <label>Canton</label>
+            <select name="canton">
+              <option>Vaud</option><option>Genève</option><option>Valais</option><option>Fribourg</option>
+              <option>Neuchâtel</option><option>Berne</option><option>Zurich</option><option>Autre</option>
+            </select>
+          </div>
+
+          <button class="btn btn-primary btn-block btn-lg" type="submit">Créer mon compte</button>
+          <p class="form-hint center" style="margin-top:14px">En vous inscrivant, vous acceptez nos <a href="cgu.html">conditions générales</a>.</p>
+        </form>
+
+        <div class="divider">déjà inscrit ?</div>
+        <a class="btn btn-ghost btn-block" href="connexion.html">Se connecter</a>
+        <p class="center" style="margin:18px 0 0"><a href="espace.html" class="btn-link">▶ Ou tester la démo sans compte</a></p>
+      </div>
+    </div>
+  </div>
+
+  <div data-footer></div>
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

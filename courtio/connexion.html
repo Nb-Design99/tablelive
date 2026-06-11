@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connexion — Courtio</title>
+  <meta name="description" content="Connectez-vous à votre espace Courtio." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <div data-header></div>
+
+  <div class="auth-wrap">
+    <div class="container" style="display:grid;place-items:center">
+      <div class="auth-card reveal">
+        <h1>Connexion</h1>
+        <p class="text-muted" style="margin-bottom:24px">Accédez à votre espace Courtio.</p>
+
+        <form data-demo="Connexion simulée (démo). Découvrez l'espace interactif !">
+          <div class="form-field">
+            <label>Adresse e-mail</label>
+            <input type="email" name="email" required placeholder="vous@exemple.ch" />
+          </div>
+          <div class="form-field">
+            <label>Mot de passe</label>
+            <input type="password" name="password" required placeholder="Votre mot de passe" />
+          </div>
+          <button class="btn btn-primary btn-block btn-lg" type="submit">Se connecter</button>
+        </form>
+
+        <div class="divider">ou</div>
+        <a class="btn btn-emerald btn-block" href="espace.html">▶ Entrer dans la démo interactive</a>
+        <p class="center" style="margin:18px 0 0">Pas encore de compte ? <a href="inscription.html">Inscrivez-vous</a></p>
+      </div>
+    </div>
+  </div>
+
+  <div data-footer></div>
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
